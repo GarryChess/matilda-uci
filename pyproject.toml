@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "matilda-uci"
+version = "0.1.0"
+description = "Matilda: a free human-like UCI chess engine."
+readme = "README.md"
+requires-python = ">=3.11"
+# maia2 0.9 does not declare several of its own imports, so torch/numpy are
+# listed explicitly here.
+dependencies = [
+  "python-chess>=1.999",
+  "maia2==0.9",
+  "numpy",
+  "torch>=2.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/jcarlson212/matilda-uci"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.12",
+]
+
+[project.scripts]
+matilda-uci = "matilda_uci.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
