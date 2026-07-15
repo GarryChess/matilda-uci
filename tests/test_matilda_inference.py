@@ -201,6 +201,42 @@ def test_checkpoint_style_rows_are_derived_not_hardcoded(tmp_path) -> None:
     assert model.predict(chess.Board()) is not None  # loads without size mismatch
 
 
+def test_wrong_variant_feature_shapes_fail_loudly(zero_ckpt) -> None:
+    """A Maia-3 variant with different dims must raise an actionable error,
+    not a cryptic matmul failure deep in the transformer."""
+    from matilda_uci.matilda.inference import Maia3FeatureError
+
+    class WrongShapeWrapper(FakeMaia3Wrapper):
+        def infer(self, board, **kwargs):
+            r = super().infer(board, **kwargs)
+            return Maia3Result(
+                move_probs=r.move_probs,
+                logits=r.logits,
+                win_prob=r.win_prob,
+                top_moves=r.top_moves,
+                hidden=np.zeros(1024, np.float32),  # a bigger variant's width
+                importance=r.importance,
+            )
+
+    model = MatildaModel(zero_ckpt, wrapper=WrongShapeWrapper())
+    with pytest.raises(Maia3FeatureError, match="hidden state: 1024"):
+        model.predict(chess.Board())
+
+
+def test_feature_check_passes_once_for_correct_shapes(zero_ckpt) -> None:
+    model, _ = make_model(zero_ckpt)
+    assert model.predict(chess.Board()) is not None
+    assert model._features_checked
+
+
+def test_non_23m_variant_warns(zero_ckpt, caplog) -> None:
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="matilda_uci.matilda.inference"):
+        MatildaModel(zero_ckpt, maia3_model="79m", wrapper=FakeMaia3Wrapper())
+    assert any("79m" in rec.message for rec in caplog.records)
+
+
 def test_close_leaves_injected_wrapper_alone(zero_ckpt) -> None:
     class ClosableWrapper(FakeMaia3Wrapper):
         def __init__(self):

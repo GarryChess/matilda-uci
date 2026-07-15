@@ -15,7 +15,7 @@ protocol) stays importable and testable without ``torch``.
 from __future__ import annotations
 
 from .features import SF_CP_UNSCORED, tensors_sf
-from .inference import MatildaModel, MatildaPrediction
+from .inference import Maia3FeatureError, MatildaModel, MatildaPrediction
 from .search import (
     CP_UNSCORED,
     MATE_SCORE,
@@ -45,6 +45,7 @@ __all__ = [
     "TXTC",
     "MatildaModel",
     "MatildaPrediction",
+    "Maia3FeatureError",
     "SearchController",
     "UciSearchController",
     "DumbSearchController",

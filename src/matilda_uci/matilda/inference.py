@@ -25,11 +25,21 @@ import numpy as np
 import torch
 
 from .features import tensors_sf
-from .model import HIDDEN_DIM, N_CANDIDATES, TXTC
+from .model import HIDDEN_DIM, IMPORTANCE_DIM, N_CANDIDATES, VOCAB_SIZE, TXTC
 from .move_vocab import legal_mask, move_index
 from .search import SearchController, scores_to_arrays
 
 logger = logging.getLogger(__name__)
+
+# The Maia-3 variant every shipped checkpoint was trained against. Other
+# variants (e.g. 79m) emit different feature shapes/statistics: shape errors
+# are caught below, but even shape-compatible drift silently mis-featurizes,
+# hence the loud warning on any mismatch.
+TRAINED_MAIA3_MODEL = "23m"
+
+
+class Maia3FeatureError(RuntimeError):
+    """The Maia-3 backend produced features the re-ranker was not trained on."""
 
 
 @dataclass(frozen=True)
@@ -71,6 +81,14 @@ class MatildaModel:
         self._base_sd: dict | None = None
         self._style_loaded = False
         self._n_style_rows = 0
+        self._features_checked = False
+        if maia3_model != TRAINED_MAIA3_MODEL:
+            logger.warning(
+                "Maia-3 variant %r requested, but every shipped re-ranker was "
+                "trained against %r features; play quality is unverified even "
+                "if the shapes happen to match.",
+                maia3_model, TRAINED_MAIA3_MODEL,
+            )
 
     # --- loading -----------------------------------------------------------------
     def _ensure_model(self) -> TXTC:
@@ -152,6 +170,35 @@ class MatildaModel:
             self._owns_wrapper = True
         return self._wrapper
 
+    def _check_features(self, r: object) -> None:
+        """Validate (once) that the Maia-3 backend emits the trained-against
+        feature shapes — a wrong variant otherwise fails as a cryptic matmul
+        error deep in the transformer, or worse, silently mis-featurizes."""
+        if self._features_checked:
+            return
+        problems = []
+        n_logits = int(np.asarray(r.logits).reshape(-1).shape[0])
+        if n_logits != VOCAB_SIZE:
+            problems.append(f"policy logits: {n_logits} (expected {VOCAB_SIZE})")
+        if r.hidden is not None:
+            n_hidden = int(np.asarray(r.hidden).reshape(-1).shape[0])
+            if n_hidden != HIDDEN_DIM:
+                problems.append(f"hidden state: {n_hidden} (expected {HIDDEN_DIM})")
+        if r.importance is not None:
+            n_imp = int(np.asarray(r.importance).reshape(-1).shape[0])
+            if n_imp != IMPORTANCE_DIM:
+                problems.append(f"importance map: {n_imp} (expected {IMPORTANCE_DIM})")
+        if problems:
+            raise Maia3FeatureError(
+                "Maia-3 backend feature mismatch — " + "; ".join(problems) + ". "
+                f"The re-ranker was trained against the '{TRAINED_MAIA3_MODEL}' "
+                "variant at the pinned revision; install "
+                "'maia3 @ git+https://github.com/CSSLab/maia3.git@"
+                "1e13597c42d4858b7cfd7cfdae01e297263364b2' and use "
+                f"maia3_model='{TRAINED_MAIA3_MODEL}'."
+            )
+        self._features_checked = True
+
     # --- inference ---------------------------------------------------------------
     def predict(
         self,
@@ -185,6 +232,7 @@ class MatildaModel:
             elo_oppo=int(elo_oppo),
             board_history=list(board_history or []),
         )
+        self._check_features(r)
 
         # --- candidate block, exactly as featurize_maia3_only.py builds it ---
         cand = [u for u, _ in r.top_moves[:N_CANDIDATES]]

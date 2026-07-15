@@ -33,6 +33,10 @@ on the first move request.
 
 The legacy backend needs neither: `matilda-uci --backend maia2 --maia-type rapid`.
 
+To use it from a chess GUI, point the "add engine" dialog at the
+`matilda-uci` executable — walkthroughs for CuteChess, cutechess-cli, and
+En Croissant are in [docs/gui-demo.md](docs/gui-demo.md).
+
 ## CLI flags
 
 | Flag | Default | Meaning |
@@ -94,6 +98,45 @@ to 16 candidate moves plugs in, and without one the model degrades gracefully
 to the pure human prior. `go infinite` runs on a worker thread and holds
 `bestmove` until `stop`, per the UCI spec.
 
+## Botvinnik's programme, inverted
+
+<img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
+
+Long before brute-force search won, world champion **Mikhail Botvinnik**
+argued that a chess program should work the way a master does: don't examine
+every move — build a small *candidate set* the way a human would, and spend
+your calculation only there. He devoted his post-championship career (the
+PIONEER project; *Computers, Chess and Long-Range Planning*, 1970) to
+formalizing that selective, human-feature-focused search. Hardware went the
+other way, and Botvinnik's programme was shelved.
+
+Matilda's architecture is that idea, made practical by learning the human
+part instead of hand-coding it. A frozen human-move model (Maia-3) proposes
+the up-to-16 moves a human would actually consider in the position — the
+candidate set Botvinnik wanted — and the **pluggable search controller**
+decides how to spend engine effort across *only those moves*. Stockfish and
+Lc0 plug in today; the `SearchController` API (see
+[developer.md](developer.md)) exists precisely so anyone can implement their
+own allocation policy — deeper on the moves that look most interesting for a
+human, shallower elsewhere. The re-ranker then blends what the engine found
+back into the human distribution. It should "just work" with any controller:
+that composability, not any single engine, is the point.
+
+<sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
+[CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
+
+## Demos, docs, numbers
+
+- **[developer.md](developer.md)** — Python API, custom search controllers,
+  style personalization, embedding in your own service.
+- **[docs/gui-demo.md](docs/gui-demo.md)** — playing it from CuteChess & co.
+- **[docs/profiling.md](docs/profiling.md)** — inference throughput by game
+  phase (~100 predictions/s on an Apple M3 Pro CPU), rliable bootstrap CIs.
+- **[demos/games/](demos/games/)** — sample games vs lichess-level Stockfish;
+  regenerate with `demos/play_vs_stockfish.py`.
+- **[demos/style_demo.py](demos/style_demo.py)** — measure how player-style
+  embeddings condition the policy.
+
 ## Development
 
 ```bash
@@ -111,3 +154,16 @@ for the parity checks, a clone of the paper repo).
 ## License
 
 GPL-3.0 — see LICENSE.
+
+## Citation
+
+If you use Matilda in your research, please cite:
+
+```bibtex
+@article{carlson2026matilda,
+  title  = {Matilda: Engine-Agnostic Search with Human Policy Guidance},
+  author = {Carlson, Jason},
+  year   = {2026},
+  note   = {Preprint},
+}
+```
