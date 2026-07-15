@@ -174,6 +174,52 @@ def test_pid_without_style_overlay_is_ignored(zero_ckpt) -> None:
     assert pred is not None  # warns and plays style-free
 
 
+def test_hidden_none_degrades_gracefully(zero_ckpt) -> None:
+    """A wrapper whose hidden hook failed returns hidden=None; predict must
+    zero-fill (like importance) instead of crashing every move."""
+
+    class NoHiddenWrapper(FakeMaia3Wrapper):
+        def infer(self, board, **kwargs):
+            r = super().infer(board, **kwargs)
+            return Maia3Result(
+                move_probs=r.move_probs, logits=r.logits, win_prob=r.win_prob,
+                top_moves=r.top_moves, hidden=None, importance=None,
+            )
+
+    model = MatildaModel(zero_ckpt, wrapper=NoHiddenWrapper())
+    pred = model.predict(chess.Board())
+    assert pred is not None
+    assert abs(sum(pred.move_probs.values()) - 1.0) < 1e-6
+
+
+def test_checkpoint_style_rows_are_derived_not_hardcoded(tmp_path) -> None:
+    """A base checkpoint with a non-default style table must still strict-load."""
+    sd = generate_base(_Args(seed=0, n_players=6998, dropout=0.1, random_head=False))
+    path = tmp_path / "wide_base.pt"
+    torch.save(sd, path)
+    model = MatildaModel(str(path), wrapper=FakeMaia3Wrapper())
+    assert model.predict(chess.Board()) is not None  # loads without size mismatch
+
+
+def test_close_leaves_injected_wrapper_alone(zero_ckpt) -> None:
+    class ClosableWrapper(FakeMaia3Wrapper):
+        def __init__(self):
+            super().__init__()
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    wrapper = ClosableWrapper()
+    model = MatildaModel(zero_ckpt, wrapper=wrapper)
+    model.predict(chess.Board())
+    model.close()
+    assert not wrapper.closed  # caller-owned: close() must not touch it
+    # and a reused model keeps using the injected wrapper, not a real Maia-3
+    assert model.predict(chess.Board()) is not None
+    assert len(wrapper.calls) == 2
+
+
 # --- scores_to_arrays unit tests ---------------------------------------------------
 
 def test_scores_to_arrays_rank_derivation() -> None:
@@ -184,6 +230,21 @@ def test_scores_to_arrays_rank_derivation() -> None:
     assert sf_cp[0] == 50 and sf_rank[0] == 1  # e2e4: higher cp -> rank 1
     assert sf_cp[1] == 30 and sf_rank[1] == 2
     assert sf_cp[2] == CP_UNSCORED and sf_rank[2] == 0  # unscored candidate
+
+
+def test_scores_to_arrays_mixed_ranks_rederived() -> None:
+    """Partial ranks can't be honored: rank 0 means 'unscored' to the model,
+    so scored-but-unranked moves must get a real 1-based rank."""
+    cands = ["e2e4", "d2d4", "g1f3"] + [""] * 13
+    scores = [
+        MoveScore("d2d4", cp=30, rank=1),  # controller ranked only its top pick
+        MoveScore("e2e4", cp=50),
+        MoveScore("g1f3", cp=10),
+    ]
+    sf_cp, sf_rank, valid = scores_to_arrays(cands, scores)
+    assert valid == 1
+    assert sf_rank[0] == 1 and sf_rank[1] == 2 and sf_rank[2] == 3  # by cp desc
+    assert (sf_rank[:3] > 0).all()  # no scored move carries the unscored rank
 
 
 def test_scores_to_arrays_clamps_and_respects_given_ranks() -> None:

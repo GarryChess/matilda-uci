@@ -189,6 +189,18 @@ def test_parse_go() -> None:
     assert _parse_go("depth 10 movetime 500".split()) == {"depth": 10, "movetime": 500}
 
 
+def test_parse_go_searchmoves_does_not_swallow_later_params() -> None:
+    # UCI allows parameters after the searchmoves list; the move tokens end at
+    # the first non-move token.
+    parsed = _parse_go("searchmoves e2e4 d2d4 infinite".split())
+    assert parsed == {"searchmoves": ["e2e4", "d2d4"], "infinite": True}
+    parsed = _parse_go("searchmoves e7e8q wtime 60000 winc 1000".split())
+    assert parsed == {"searchmoves": ["e7e8q"], "wtime": 60_000, "winc": 1000}
+    # ...and the conventional trailing position still works
+    parsed = _parse_go("infinite searchmoves e2e4".split())
+    assert parsed == {"infinite": True, "searchmoves": ["e2e4"]}
+
+
 def test_engine_forwards_go_params_to_policy() -> None:
     import io
 
@@ -200,3 +212,81 @@ def test_engine_forwards_go_params_to_policy() -> None:
     engine.join_search(timeout=5)
     assert policy.tc_base == 180.0 and policy.tc_inc == 1.0
     assert "bestmove" in out.getvalue()
+
+
+def test_setoption_aborts_running_search() -> None:
+    """setoption must serialize with the search thread: it may tear down the
+    model/controller the search is using (checkpoint/engine swaps)."""
+    import io
+    import threading
+
+    release = threading.Event()
+
+    class SlowPolicy:
+        def __init__(self):
+            self.options_set = []
+
+        def select(self, board):
+            release.wait(timeout=5)
+            legal = sorted(m.uci() for m in board.legal_moves)
+            from matilda_uci.policy import PolicyResult
+
+            return PolicyResult(best_uci=legal[0])
+
+        def uci_options(self):
+            return []
+
+        def set_option(self, name, value):
+            self.options_set.append((name, value))
+
+        def observe_go(self, params, board):
+            pass
+
+        def new_game(self):
+            pass
+
+        def close(self):
+            release.set()
+
+    policy = SlowPolicy()
+    engine = UciEngine(policy, out=io.StringIO())
+    engine.handle_command("position startpos")
+    engine.handle_command("go infinite")
+    assert engine._search_thread is not None and engine._search_thread.is_alive()
+    release.set()  # let the slow select finish so the abort join succeeds
+    engine.handle_command("setoption name EngineCmd value lc0")
+    # the search thread was aborted (joined) before the option was applied
+    assert engine._search_thread is None
+    assert policy.options_set == [("EngineCmd", "lc0")]
+
+
+def test_search_failure_reports_error_info_string() -> None:
+    import io
+
+    class BoomPolicy:
+        def select(self, board):
+            raise RuntimeError("checkpoint not found")
+
+        def uci_options(self):
+            return []
+
+        def set_option(self, name, value):
+            pass
+
+        def observe_go(self, params, board):
+            pass
+
+        def new_game(self):
+            pass
+
+        def close(self):
+            pass
+
+    out = io.StringIO()
+    engine = UciEngine(BoomPolicy(), out=out)
+    engine.handle_command("position startpos")
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    text = out.getvalue()
+    assert "info string error: RuntimeError: checkpoint not found" in text
+    assert "bestmove 0000" in text

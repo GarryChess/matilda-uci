@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import sys
+from pathlib import Path
 from typing import Sequence
 
 from .engine import UciEngine
+
+_MATILDA_DEVICES = ("cpu", "mps", "cuda")
+_MAIA2_DEVICES = ("cpu", "gpu")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,8 +80,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     maia2 = parser.add_argument_group("maia2 backend (legacy)")
-    maia2.add_argument("--maia-type", default="rapid", choices=["rapid", "blitz"])
+    # default=None so we can tell "left alone" from "explicitly requested" and
+    # reject the flag under the matilda backend instead of ignoring it.
+    maia2.add_argument("--maia-type", default=None, choices=["rapid", "blitz"])
     return parser
+
+
+def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Fail fast at startup on configuration the engine cannot run with.
+
+    Anything that slips past here only surfaces at the first ``go`` — and the
+    engine answers a failed ``go`` with a null move, which GUIs render as a
+    cryptic illegal-move loop. A clean argparse error beats that every time.
+    """
+    if args.backend == "matilda":
+        if args.device not in _MATILDA_DEVICES:
+            parser.error(
+                f"--device {args.device!r} is not valid for the matilda backend "
+                f"(choose from {', '.join(_MATILDA_DEVICES)})"
+            )
+        if args.maia_type is not None:
+            parser.error(
+                "--maia-type only applies to the legacy Maia-2 backend; "
+                "add --backend maia2 (the default backend is the Maia-3 based matilda)"
+            )
+        if not Path(args.checkpoint).is_file():
+            parser.error(
+                f"re-ranker checkpoint not found: {args.checkpoint!r} — pass "
+                "--checkpoint /path/to/base_3k.pt (see README for where to get it)"
+            )
+        for flag, path in (("--style-checkpoint", args.style_checkpoint),
+                           ("--style-posthoc", args.style_posthoc)):
+            if path and not Path(path).is_file():
+                parser.error(f"{flag} file not found: {path!r}")
+        if importlib.util.find_spec("maia3") is None:
+            parser.error(
+                "the 'maia3' package is required for the matilda backend; install "
+                "the pinned revision:\n  pip install 'maia3 @ git+https://github.com/"
+                "CSSLab/maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2'"
+            )
+    else:  # maia2
+        if args.device not in _MAIA2_DEVICES:
+            parser.error(
+                f"--device {args.device!r} is not valid for the maia2 backend "
+                f"(choose from {', '.join(_MAIA2_DEVICES)})"
+            )
 
 
 def build_policy(args: argparse.Namespace):
@@ -86,7 +134,7 @@ def build_policy(args: argparse.Namespace):
         return MaiaPolicy(
             elo_self=args.elo,
             elo_oppo=args.opp_elo,
-            maia_type=args.maia_type,
+            maia_type=args.maia_type or "rapid",
             device=args.device,
             temperature=args.temperature,
         )
@@ -112,7 +160,9 @@ def build_policy(args: argparse.Namespace):
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    validate_args(parser, args)
     # Logs MUST go to stderr; stdout is the UCI protocol channel.
     logging.basicConfig(
         level=getattr(logging, args.log_level),

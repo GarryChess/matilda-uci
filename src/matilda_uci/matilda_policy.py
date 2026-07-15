@@ -29,7 +29,15 @@ from typing import Callable
 
 import chess
 
-from .policy import PolicyResult, UciOption, winprob_to_cp
+from .policy import (
+    PolicyResult,
+    UciOption,
+    _safe_float,
+    _safe_int,
+    choose_with_temperature,
+    effective_elo,
+    winprob_to_cp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -222,10 +230,10 @@ class MatildaPolicy:
             self._reset_controller()
         elif key == "enginedepth":
             self.engine_depth = _safe_int(value, self.engine_depth)
-            self._reset_controller()
+            self._update_controller_limits()
         elif key == "enginenodes":
             self.engine_nodes = _safe_int(value, self.engine_nodes)
-            self._reset_controller()
+            self._update_controller_limits()
         elif key == "device" and value in ("cpu", "mps", "cuda") and value != self.device:
             self.device = value
             self._reset_model()
@@ -309,35 +317,15 @@ class MatildaPolicy:
                 close()
             self._controller = None
 
+    def _update_controller_limits(self) -> None:
+        """Apply depth/nodes to a live controller in place — they only feed the
+        per-call search limit, so no reason to respawn the engine subprocess."""
+        if self._controller is not None:
+            self._controller.depth = self.engine_depth
+            self._controller.nodes = self.engine_nodes
+
     def _effective_elo(self) -> int:
-        if not self.limit_strength:
-            return self.elo_max
-        return max(self.elo_min, min(self.elo_max, self.elo_self))
+        return effective_elo(self.elo_self, self.elo_min, self.elo_max, self.limit_strength)
 
     def _choose(self, ranked: tuple[tuple[str, float], ...]) -> str:
-        if self.temperature <= 0.0 or len(ranked) == 1:
-            return ranked[0][0]
-        inv_t = 1.0 / self.temperature
-        weights = [max(prob, 1e-12) ** inv_t for _, prob in ranked]
-        total = sum(weights)
-        draw = self._rng.random() * total
-        upto = 0.0
-        for (uci, _prob), weight in zip(ranked, weights):
-            upto += weight
-            if draw <= upto:
-                return uci
-        return ranked[0][0]
-
-
-def _safe_int(value: str, fallback: int) -> int:
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return fallback
-
-
-def _safe_float(value: str, fallback: float) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return fallback
+        return choose_with_temperature(ranked, self.temperature, self._rng)

@@ -32,12 +32,16 @@ from typing import Protocol, Sequence, runtime_checkable
 
 import numpy as np
 
+from .features import SF_CP_UNSCORED
 from .model import N_CANDIDATES
 
 logger = logging.getLogger(__name__)
 
 MATE_SCORE = 32000
-CP_UNSCORED = -MATE_SCORE - 1  # sentinel: candidate not scored
+# Sentinel for "candidate not scored" — defined once in features.py (the
+# consumer side of the contract) and re-exported here for producers.
+CP_UNSCORED = SF_CP_UNSCORED
+assert CP_UNSCORED == -MATE_SCORE - 1  # the two constants must stay coupled
 
 
 @dataclass(frozen=True)
@@ -79,15 +83,18 @@ def scores_to_arrays(
     """Map controller output onto the model's ``(sf_cp, sf_rank, sf_valid)``.
 
     ``candidates`` is the padded 16-slot candidate list (empty string = unused
-    slot). Ranks, when not supplied, are assigned 1-based by cp descending among
-    the scored moves — the same ordering a UCI engine's multipv listing gives.
+    slot). Ranks are used as given only when EVERY score carries one; if any is
+    missing, all ranks are (re)derived 1-based by cp descending — the same
+    ordering a UCI engine's multipv listing gives. A partial ranking cannot be
+    honored consistently, and rank 0 means "unscored" to the model, so it must
+    never leak onto a scored move.
     """
     by_uci: dict[str, MoveScore] = {}
     for s in scores:
         clamped = int(max(-MATE_SCORE, min(MATE_SCORE, s.cp)))
         by_uci[s.uci] = MoveScore(s.uci, clamped, s.rank, s.depth, s.time_s)
 
-    if by_uci and all(s.rank is None for s in by_uci.values()):
+    if by_uci and any(s.rank is None for s in by_uci.values()):
         ordered = sorted(by_uci.values(), key=lambda s: s.cp, reverse=True)
         by_uci = {
             s.uci: MoveScore(s.uci, s.cp, i + 1, s.depth, s.time_s)
@@ -137,19 +144,28 @@ class UciSearchController:
         self.timeout_s = timeout_s
         self.options = dict(options or {})
         self._engine = engine
-        self._owns_engine = engine is None
+        # Ownership follows creation: an injected engine is caller-owned; any
+        # engine WE spawn (including after a crash) is ours to quit.
+        self._owns_engine = False
 
     def _ensure_engine(self) -> "object":
         if self._engine is None:
             import chess.engine
 
             self._engine = chess.engine.SimpleEngine.popen_uci(shlex.split(self.cmd))
+            self._owns_engine = True
             for opt, val in self.options.items():
                 try:
                     self._engine.configure({opt: val})
                 except chess.engine.EngineError:
                     logger.debug("engine %s has no option %s", self.cmd, opt)
         return self._engine
+
+    def _handle_engine_death(self, exc: Exception) -> None:
+        """Drop a dead engine so the next call respawns instead of reusing it."""
+        logger.warning("search engine terminated (%s); will respawn on next call", exc)
+        self._engine = None
+        self._owns_engine = False
 
     def _limit(self) -> "object":
         import chess.engine
@@ -173,8 +189,16 @@ class UciSearchController:
                 moves.append(mv)
         if not moves:
             return []
+        import chess.engine
+
         engine = self._ensure_engine()
-        infos = engine.analyse(board, self._limit(), root_moves=moves, multipv=len(moves))
+        try:
+            infos = engine.analyse(
+                board, self._limit(), root_moves=moves, multipv=len(moves)
+            )
+        except chess.engine.EngineTerminatedError as exc:
+            self._handle_engine_death(exc)
+            raise
         if isinstance(infos, dict):
             infos = [infos]
         out: list[MoveScore] = []
@@ -194,12 +218,16 @@ class UciSearchController:
         return out
 
     def close(self) -> None:
+        # Quit and drop only an engine we spawned; an injected engine is
+        # caller-owned and stays attached, so a reused controller keeps
+        # honoring the shared-engine contract instead of respawning its own.
         if self._engine is not None and self._owns_engine:
             try:
                 self._engine.quit()
             except Exception:  # already dead is fine
                 logger.debug("engine quit failed", exc_info=True)
-        self._engine = None
+            self._engine = None
+            self._owns_engine = False
 
 
 class DumbSearchController(UciSearchController):
@@ -242,9 +270,13 @@ class DumbSearchController(UciSearchController):
             if not board.is_legal(mv):
                 continue
             depth = self._rng.randint(self.min_depth, self.max_depth)
-            info = engine.analyse(
-                board, chess.engine.Limit(depth=depth), root_moves=[mv]
-            )
+            try:
+                info = engine.analyse(
+                    board, chess.engine.Limit(depth=depth), root_moves=[mv]
+                )
+            except chess.engine.EngineTerminatedError as exc:
+                self._handle_engine_death(exc)
+                raise
             if isinstance(info, list):
                 info = info[0]
             pv = info.get("pv")

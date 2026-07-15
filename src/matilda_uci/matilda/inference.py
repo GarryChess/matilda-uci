@@ -25,7 +25,7 @@ import numpy as np
 import torch
 
 from .features import tensors_sf
-from .model import N_CANDIDATES, TXTC
+from .model import HIDDEN_DIM, N_CANDIDATES, TXTC
 from .move_vocab import legal_mask, move_index
 from .search import SearchController, scores_to_arrays
 
@@ -65,6 +65,7 @@ class MatildaModel:
         self.device = device
         self.maia3_model = maia3_model
         self._wrapper = wrapper
+        self._owns_wrapper = wrapper is None  # injected wrappers stay caller-owned
         self._wrapper_factory = wrapper_factory
         self._model: TXTC | None = None
         self._base_sd: dict | None = None
@@ -76,7 +77,9 @@ class MatildaModel:
         if self._model is None:
             sd = torch.load(self.checkpoint, map_location="cpu")
             self._base_sd = {k: v for k, v in sd.items() if not k.startswith("sp")}
-            model = TXTC()
+            # Size the style table from the checkpoint (rows = n_players + 1),
+            # like every other load site — hardcoding breaks custom checkpoints.
+            model = TXTC(n_players=sd["spe.weight"].shape[0] - 1)
             model.load_state_dict(sd, strict=True)
             model.to(self.device).eval()
             self._model = model
@@ -137,13 +140,16 @@ class MatildaModel:
             else:
                 from .maia3_wrapper import Maia3Wrapper
 
+                # Same device as the re-ranker: the paper's own featurization
+                # ran Maia-3 on MPS, so no silent downgrade here.
                 self._wrapper = Maia3Wrapper(
                     model=self.maia3_model,
-                    device=self.device if self.device != "mps" else "cpu",
+                    device=self.device,
                     top_k=N_CANDIDATES,
                     capture_hidden=True,
                     capture_importance=True,
                 )
+            self._owns_wrapper = True
         return self._wrapper
 
     # --- inference ---------------------------------------------------------------
@@ -201,7 +207,13 @@ class MatildaModel:
                 candidates=(), prior_probs=dict(r.move_probs), engine_used=False,
             )
 
-        hidden = np.asarray(r.hidden, np.float32).reshape(-1)
+        # Both hooks are best-effort in the wrapper; degrade to zeros like the
+        # featurizer's training-time fallbacks rather than crashing every move.
+        hidden = (
+            np.asarray(r.hidden, np.float32).reshape(-1)
+            if r.hidden is not None
+            else np.zeros(HIDDEN_DIM, np.float32)
+        )
         imp = (
             np.asarray(r.importance, np.float32).reshape(8, 8)
             if r.importance is not None
@@ -269,8 +281,11 @@ class MatildaModel:
         )
 
     def close(self) -> None:
-        if self._wrapper is not None:
+        # Only tear down a wrapper we created; an injected one is caller-owned
+        # and stays attached, so a reused model keeps using it.
+        if self._wrapper is not None and self._owns_wrapper:
             close = getattr(self._wrapper, "close", None)
             if callable(close):
                 close()
             self._wrapper = None
+            self._owns_wrapper = False
