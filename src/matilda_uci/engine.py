@@ -142,7 +142,16 @@ class UciEngine:
 
     def _cmd_go(self, args: list[str]) -> None:
         self._abort_search()
-        hold = "infinite" in args or "ponder" in args
+        params = _parse_go(args)
+        # Policies that condition on the clock (e.g. Matilda's time-control
+        # latch) may expose observe_go; the MovePolicy protocol doesn't require it.
+        observe = getattr(self.policy, "observe_go", None)
+        if callable(observe):
+            try:
+                observe(params, self.board)
+            except Exception:
+                logger.exception("policy.observe_go failed; continuing")
+        hold = "infinite" in params or "ponder" in params
         self._stop_event.clear()
         self._abort_event.clear()
         self._search_thread = threading.Thread(
@@ -198,3 +207,29 @@ class UciEngine:
         with self._write_lock:
             self._out.write(line + "\n")
             self._out.flush()
+
+
+_GO_INT_KEYS = frozenset(
+    ("wtime", "btime", "winc", "binc", "movestogo", "depth", "nodes", "mate", "movetime")
+)
+
+
+def _parse_go(args: list[str]) -> dict:
+    """Parse ``go`` arguments into a dict (int values for clock/limit keys)."""
+    params: dict = {}
+    i = 0
+    while i < len(args):
+        key = args[i]
+        if key in _GO_INT_KEYS and i + 1 < len(args):
+            try:
+                params[key] = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif key == "searchmoves":  # consume the trailing move list
+            params[key] = args[i + 1:]
+            break
+        else:  # flags: infinite, ponder
+            params[key] = True
+            i += 1
+    return params
