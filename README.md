@@ -1,4 +1,4 @@
-## Matilda
+# Matilda
 
 <img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
 
