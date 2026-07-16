@@ -10,3 +10,7 @@ build/
 # Model weights: never vendored in git. base_3k.pt (deploy) + style_token_3k.pt
 # live here locally; distribution downloads them at first run (see README).
 checkpoints/
+
+# Bulk simulation outputs (100-game runs etc.): analysis data, not source.
+# The curated 6-game demo set in demos/games/ stays tracked.
+demos/games/*_sims/

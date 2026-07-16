@@ -1,8 +1,10 @@
-# Matilda vs raw Maia-3 against lichess level 8 — 100 games each
+# Matilda vs raw Maia-3 against "lichess level 8" — 100 games each (LOCAL SIM)
 
-Identical setup both runs: Elo 3200, temperature 0.3, OpponentElo left at its
-1500 default, opponent = Stockfish as fishnet configures lichess level 8
-(Skill Level 20, depth 22, 0.5 s/move), colors alternating, 4 seeds.
+**These are locally played engine games, not games on lichess.org.** The
+opponent is a local Stockfish configured with the same recipe lichess's
+server-side AI uses for level 8 (fishnet: Skill Level 20, depth 22; we cap at
+0.5 s/move). Identical setup both runs: Elo 3200, temperature 0.3, OpponentElo
+left at its 1500 default, colors alternating, 4 seeds.
 "Maia-3" = a zero-delta re-ranker checkpoint, which provably plays the raw
 Maia-3 prior; Matilda = `base_3k.pt` + Stockfish depth-12 candidate features.
 
@@ -18,4 +20,7 @@ full-strength engine. This is the paper's top-band gain expressed in game
 results rather than move-prediction accuracy.
 
 Raw data: `lvl8_sims/` (Matilda) and `maia3_lvl8_sims/` (baseline), each with
-per-run `RESULTS.md` from `demos/aggregate_results.py`.
+per-run `RESULTS.md` from `demos/aggregate_results.py`. The PGN sets are
+gitignored (bulk analysis data); regenerate with `demos/play_vs_stockfish.py`
+using the seeds above, or rerun against the real lichess AI via the Board API
+for on-lichess games.

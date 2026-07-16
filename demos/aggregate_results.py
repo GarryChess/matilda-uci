@@ -87,8 +87,8 @@ def main() -> int:
         "",
         f"Games: {len(games)} ({n} finished, {unfinished} unfinished/excluded)",
         "",
-        f"| | W | D | L | score | 95% CI | implied Elo diff |",
-        f"|---|---|---|---|---|---|---|",
+        "| | W | D | L | score | 95% CI | implied Elo diff |",
+        "|---|---|---|---|---|---|---|",
         f"| overall | {w} | {d} | {losses} | {score:.1%} | [{lo:.1%}, {hi:.1%}] "
         f"| {implied_elo(score):+.0f} [{implied_elo(lo):+.0f}, {implied_elo(hi):+.0f}] |",
         f"| as White | {by_color[True][0]} | {by_color[True][1]} | {by_color[True][2]} "
