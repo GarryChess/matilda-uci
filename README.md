@@ -125,24 +125,23 @@ that composability, not any single engine, is the point.
 <sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
 [CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
 
-## Sample games: Matilda at full strength vs the lichess levels
+## Real games on lichess: Matilda at full strength vs the AI levels
 
-**Played locally**, not on lichess: Matilda at Elo 3200 with the Stockfish
-search controller, against a local Stockfish configured exactly as lichess's
-server-side AI levels (the fishnet mapping — level 8 = Skill 20 / depth 22).
-The links below are lichess *imports* of the local PGNs, for easy replay:
+Played **live on lichess.org** against the real server-side AI (via the Board
+API — `demos/play_on_lichess.py`): Matilda at Elo 3200 with the Stockfish
+search controller, 5+2 clock, one game each color per level.
 
 | Opponent | Games | Score |
 |---|---|---|
-| lichess level 6 | [as White (1-0)](https://lichess.org/toD5bfn5) · [as Black (0-1)](https://lichess.org/Rk8up6Sy) | **2 – 0** |
-| lichess level 7 | [as White (1-0)](https://lichess.org/rnEMk8mh) · [as Black (0-1)](https://lichess.org/GOlXH5jJ) | **2 – 0** |
-| lichess level 8 | [as White (0-1)](https://lichess.org/QZfh2Kih) · [as Black (1-0)](https://lichess.org/s1aaV2zZ) | 0 – 2 |
+| lichess level 6 | [win as White, mate](https://lichess.org/UZStPZRC) · [win as Black, mate](https://lichess.org/qzQLv7mU) | **2 – 0** |
+| lichess level 7 | [win as White, mate](https://lichess.org/FzmvD0kZ) · [win as Black, mate](https://lichess.org/DZNi54vz) | **2 – 0** |
+| lichess level 8 | [draw as White](https://lichess.org/yrGCakOj) · [draw as Black](https://lichess.org/5Zq9shsE) | **1 – 1** |
 
-(Scores are wins for Matilda's side; level 8 is essentially full-strength
-Stockfish, which a human-*distribution* model doesn't out-calculate — losing
-those while sweeping 6 and 7 is exactly the profile of a very strong human.)
-PGNs live in [demos/games/](demos/games/); regenerate or re-import with
-`demos/play_vs_stockfish.py` and `demos/import_to_lichess.py`.
+5/6 against the machine spectrum, all decided over the board (mates and a
+193-ply stalemate grind) — checkmating levels 6–7 outright and holding
+level 8, essentially full-strength Stockfish, to two draws. For local
+engine-vs-engine testing without a lichess account, `demos/play_vs_stockfish.py`
+reproduces the same opponents offline; sample PGNs in [demos/games/](demos/games/).
 
 ## Demos, docs, numbers
 
