@@ -1,18 +1,40 @@
-# Matilda
+## Matilda
 
-A free human-like UCI chess engine.
+<img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
 
-Unlike Stockfish, Matilda doesn't try to play the *best* move — it plays the
-move a **human at a given Elo** would most likely play. It speaks the standard
+Long before brute-force search won, world champion **Mikhail Botvinnik**
+argued that a chess program should work the way a master does: don't examine
+every move — build a small candidate set the way a human would, and spend
+your calculation only there. He devoted his post-championship career (the
+PIONEER project; *Computers, Chess and Long-Range Planning*, 1970) to
+formalizing that selective, human-feature-focused search. Hardware went the
+other way, and Botvinnik's programme was shelved.
+
+Matilda's architecture is that idea, made practical by learning the human
+part instead of hand-coding it. A frozen human-move model (Maia-3) proposes
+the up-to-16 moves a human would actually consider in the position — the
+candidate set Botvinnik wanted — and the pluggable search controller
+decides how to spend engine effort across *only those moves*. Stockfish and
+Lc0 plug in today; the `SearchController` API (see
+[developer.md](developer.md)) exists precisely so anyone can implement their
+own allocation policy — deeper on the moves that look most interesting for a
+human, shallower elsewhere. The re-ranker then blends what the engine found
+back into the human distribution. It should "just work" with any controller:
+that composability, not any single engine, is the point.
+
+Matilda speaks the standard
 [UCI](https://www.chessprogramming.org/UCI) protocol, so it plugs into any
 chess GUI (CuteChess, Arena, BanksiaGUI, En Croissant) or engine runner that
-can talk to Stockfish.
-
-The default backend is **Matilda**: frozen [Maia-3](https://github.com/CSSLab/maia3)
+can talk to Stockfish. The default backend architecture is a frozen [Maia-3](https://github.com/CSSLab/maia3)
 (23M) re-ranked by the paper's trained set-transformer, with optional engine
-features from any plugged-in search controller (Stockfish, Lc0, or your own).
-The legacy [Maia-2](https://github.com/CSSLab/maia2) backend remains available
-via `--backend maia2`.
+features from any plugged-in search controller (Stockfish, Lc0, or your own). By 
+default we use Stockfish, but we encourage developers to make the engine search build 
+off of Maia's attention layers to focus on more human-like engine searches and not always 
+do max depth searches.
+
+<sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
+[CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
+
 
 ## Install & run
 
@@ -36,6 +58,7 @@ The legacy backend needs neither: `matilda-uci --backend maia2 --maia-type rapid
 To use it from a chess GUI, point the "add engine" dialog at the
 `matilda-uci` executable — walkthroughs for CuteChess, cutechess-cli, and
 En Croissant are in [docs/gui-demo.md](docs/gui-demo.md).
+
 
 ## CLI flags
 
@@ -97,33 +120,6 @@ UciEngine (protocol loop) ──drives──> MovePolicy (swap seam)
 to 16 candidate moves plugs in, and without one the model degrades gracefully
 to the pure human prior. `go infinite` runs on a worker thread and holds
 `bestmove` until `stop`, per the UCI spec.
-
-## Botvinnik's programme, inverted
-
-<img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
-
-Long before brute-force search won, world champion **Mikhail Botvinnik**
-argued that a chess program should work the way a master does: don't examine
-every move — build a small *candidate set* the way a human would, and spend
-your calculation only there. He devoted his post-championship career (the
-PIONEER project; *Computers, Chess and Long-Range Planning*, 1970) to
-formalizing that selective, human-feature-focused search. Hardware went the
-other way, and Botvinnik's programme was shelved.
-
-Matilda's architecture is that idea, made practical by learning the human
-part instead of hand-coding it. A frozen human-move model (Maia-3) proposes
-the up-to-16 moves a human would actually consider in the position — the
-candidate set Botvinnik wanted — and the **pluggable search controller**
-decides how to spend engine effort across *only those moves*. Stockfish and
-Lc0 plug in today; the `SearchController` API (see
-[developer.md](developer.md)) exists precisely so anyone can implement their
-own allocation policy — deeper on the moves that look most interesting for a
-human, shallower elsewhere. The re-ranker then blends what the engine found
-back into the human distribution. It should "just work" with any controller:
-that composability, not any single engine, is the point.
-
-<sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
-[CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
 
 ## Demos, docs, numbers
 
