@@ -125,6 +125,25 @@ that composability, not any single engine, is the point.
 <sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
 [CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
 
+## Sample games: Matilda at full strength vs the lichess levels
+
+**Played locally**, not on lichess: Matilda at Elo 3200 with the Stockfish
+search controller, against a local Stockfish configured exactly as lichess's
+server-side AI levels (the fishnet mapping — level 8 = Skill 20 / depth 22).
+The links below are lichess *imports* of the local PGNs, for easy replay:
+
+| Opponent | Games | Score |
+|---|---|---|
+| lichess level 6 | [as White (1-0)](https://lichess.org/toD5bfn5) · [as Black (0-1)](https://lichess.org/Rk8up6Sy) | **2 – 0** |
+| lichess level 7 | [as White (1-0)](https://lichess.org/rnEMk8mh) · [as Black (0-1)](https://lichess.org/GOlXH5jJ) | **2 – 0** |
+| lichess level 8 | [as White (0-1)](https://lichess.org/QZfh2Kih) · [as Black (1-0)](https://lichess.org/s1aaV2zZ) | 0 – 2 |
+
+(Scores are wins for Matilda's side; level 8 is essentially full-strength
+Stockfish, which a human-*distribution* model doesn't out-calculate — losing
+those while sweeping 6 and 7 is exactly the profile of a very strong human.)
+PGNs live in [demos/games/](demos/games/); regenerate or re-import with
+`demos/play_vs_stockfish.py` and `demos/import_to_lichess.py`.
+
 ## Demos, docs, numbers
 
 - **[developer.md](developer.md)** — Python API, custom search controllers,

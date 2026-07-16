@@ -1,18 +1,42 @@
 # Using Matilda from a chess GUI
 
 Matilda is a normal UCI engine, so anything that can run Stockfish can run it.
-Below: CuteChess (the most common engine tester), cutechess-cli for automated
-matches, and En Croissant.
+Below: BanksiaGUI, CuteChess (the most common engine tester), cutechess-cli
+for automated matches, and En Croissant.
 
 ## The one thing to know first
 
-The engine executable is `matilda-uci` (or `python -m matilda_uci` from a
-checkout). It needs to find `checkpoints/base_3k.pt`; either start it from the
-repo directory or pass `--checkpoint /absolute/path/to/base_3k.pt` as an
-engine argument. Bad configuration fails at startup with a clear message —
-check the GUI's engine-log/stderr pane if the engine won't start. The first
-move takes a few seconds (model load; Maia-3 downloads from HuggingFace once);
-the handshake itself is instant.
+From a checkout, point your GUI at **`bin/matilda-uci-local`** — a launcher
+that needs no pip install and resolves the checkpoint path itself. (With an
+installed package, the executable is `matilda-uci`; then either set the
+working directory to the repo or pass `--checkpoint /absolute/path/to/base_3k.pt`.)
+Bad configuration fails at startup with a clear message — check the GUI's
+engine-log/stderr pane if the engine won't start. The first move takes a few
+seconds (model load; Maia-3 downloads from HuggingFace once); the handshake
+itself is instant.
+
+## BanksiaGUI
+
+1. **Engines tab (sidebar) → `+` Add** (protocol: UCI).
+2. *Command/file*: browse to `<repo>/bin/matilda-uci-local`.
+3. Optional *arguments*: e.g. `--elo 3200 --engine-cmd stockfish` for the
+   engine-assisted maximum strength, or leave empty and set everything as UCI
+   options instead (`UCI_Elo`, `OpponentElo`, `EngineCmd`, `Temperature`, ...)
+   in the engine's option editor — Matilda's options appear there after the
+   first handshake.
+4. To reproduce the **lichess levels** as opponents, add Stockfish three times
+   and name the entries "Lichess lvl6/7/8"; in each entry's option editor set
+   `Skill Level` to 11 / 16 / 20 respectively (the fishnet mapping; lichess
+   also caps depth at 8 / 13 / 22 — use a fixed-depth or short-movetime time
+   control in the match dialog to approximate it).
+5. **New game / New match**: pick Matilda vs a lichess-level entry, choose the
+   time control, and let them play — or seat yourself as one side to play
+   against Matilda directly.
+6. Give Matilda a real clock (e.g. 3+0): it latches the time control off the
+   clock at the first move and genuinely plays differently at different TCs.
+
+Tip: for engine-vs-engine matches set Matilda's `Temperature` to ~0.3 so
+repeat games vary; at 0 it deterministically plays the single most-human move.
 
 ## CuteChess (GUI)
 

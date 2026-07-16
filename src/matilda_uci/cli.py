@@ -31,6 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--temperature", type=float, default=0.0,
         help="0 = always the most human-likely move; >0 samples for variety.",
     )
+    parser.add_argument(
+        "--seed", type=int, default=0,
+        help="RNG seed for temperature sampling (distinct seeds -> distinct games).",
+    )
     parser.add_argument("--name", default="Matilda", help="Engine name shown to the GUI.")
     parser.add_argument(
         "--log-level", default="WARNING",
@@ -137,6 +141,7 @@ def build_policy(args: argparse.Namespace):
             maia_type=args.maia_type or "rapid",
             device=args.device,
             temperature=args.temperature,
+            seed=args.seed,
         )
     from .matilda_policy import MatildaPolicy
 
@@ -156,6 +161,7 @@ def build_policy(args: argparse.Namespace):
         engine_cmd=args.engine_cmd,
         engine_depth=args.engine_depth,
         engine_nodes=args.engine_nodes,
+        seed=args.seed,
     )
 
 
