@@ -91,6 +91,14 @@ class MovePolicy(Protocol):
 
     def set_option(self, name: str, value: str) -> None: ...
 
+    def observe_go(self, params: dict, board: chess.Board) -> None:
+        """Called with the parsed ``go`` parameters before each search starts.
+
+        Policies that condition on the clock (e.g. Matilda's time-control
+        latch) read ``wtime``/``winc`` here; others do nothing.
+        """
+        ...
+
     def new_game(self) -> None: ...
 
     def close(self) -> None: ...
@@ -199,6 +207,10 @@ class MaiaPolicy:
         else:
             logger.debug("MaiaPolicy: ignoring option %s=%s", name, value)
 
+    def observe_go(self, params: dict, board: chess.Board) -> None:
+        # Maia-2 does not condition on the clock; nothing to observe.
+        pass
+
     def new_game(self) -> None:
         # Maia decides each position independently; nothing to reset between games.
         pass
@@ -231,23 +243,35 @@ class MaiaPolicy:
         )
 
     def _effective_elo(self) -> int:
-        if not self.limit_strength:
-            return self.elo_max
-        return max(self.elo_min, min(self.elo_max, self.elo_self))
+        return effective_elo(self.elo_self, self.elo_min, self.elo_max, self.limit_strength)
 
     def _choose(self, ranked: tuple[tuple[str, float], ...]) -> str:
-        if self.temperature <= 0.0 or len(ranked) == 1:
-            return ranked[0][0]
-        inv_t = 1.0 / self.temperature
-        weights = [max(prob, 1e-12) ** inv_t for _, prob in ranked]
-        total = sum(weights)
-        draw = self._rng.random() * total
-        upto = 0.0
-        for (uci, _prob), weight in zip(ranked, weights):
-            upto += weight
-            if draw <= upto:
-                return uci
+        return choose_with_temperature(ranked, self.temperature, self._rng)
+
+
+def effective_elo(elo: int, elo_min: int, elo_max: int, limit_strength: bool) -> int:
+    """The Elo actually fed to the model: clamped, or ``elo_max`` when unlimited."""
+    if not limit_strength:
+        return elo_max
+    return max(elo_min, min(elo_max, elo))
+
+
+def choose_with_temperature(
+    ranked: tuple[tuple[str, float], ...], temperature: float, rng: random.Random
+) -> str:
+    """Pick from a ranked ``(uci, prob)`` tuple; 0 = argmax, >0 = temperature sample."""
+    if temperature <= 0.0 or len(ranked) == 1:
         return ranked[0][0]
+    inv_t = 1.0 / temperature
+    weights = [max(prob, 1e-12) ** inv_t for _, prob in ranked]
+    total = sum(weights)
+    draw = rng.random() * total
+    upto = 0.0
+    for (uci, _prob), weight in zip(ranked, weights):
+        upto += weight
+        if draw <= upto:
+            return uci
+    return ranked[0][0]
 
 
 def _safe_int(value: str, fallback: int) -> int:

@@ -10,12 +10,14 @@ into the engine unchanged.
 from __future__ import annotations
 
 from .engine import UciEngine
+from .matilda_policy import MatildaPolicy
 from .policy import MaiaPolicy, MovePolicy, PolicyResult, UciOption, cp_to_winprob, winprob_to_cp
 
 __version__ = "0.1.0"
 
 __all__ = [
     "UciEngine",
+    "MatildaPolicy",
     "MaiaPolicy",
     "MovePolicy",
     "PolicyResult",

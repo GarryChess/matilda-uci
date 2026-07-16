@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 import threading
 from typing import TextIO
@@ -100,6 +101,10 @@ class UciEngine:
         self.policy.new_game()
 
     def _cmd_setoption(self, args: list[str]) -> None:
+        # Serialize with any running search: options like EngineCmd/Device tear
+        # down the model/controller the search thread is using; per the UCI spec
+        # setoption is sent while the engine is idle, but GUIs violate that.
+        self._abort_search()
         if "name" not in args:
             return
         rest = args[args.index("name") + 1:]
@@ -142,7 +147,16 @@ class UciEngine:
 
     def _cmd_go(self, args: list[str]) -> None:
         self._abort_search()
-        hold = "infinite" in args or "ponder" in args
+        params = _parse_go(args)
+        # Policies that condition on the clock (e.g. Matilda's time-control
+        # latch) may expose observe_go; the MovePolicy protocol doesn't require it.
+        observe = getattr(self.policy, "observe_go", None)
+        if callable(observe):
+            try:
+                observe(params, self.board)
+            except Exception:
+                logger.exception("policy.observe_go failed; continuing")
+        hold = "infinite" in params or "ponder" in params
         self._stop_event.clear()
         self._abort_event.clear()
         self._search_thread = threading.Thread(
@@ -155,8 +169,12 @@ class UciEngine:
         board = self.board.copy()
         try:
             result = self.policy.select(board)
-        except Exception:  # never leave the GUI hanging without a bestmove
+        except Exception as exc:  # never leave the GUI hanging without a bestmove
             logger.exception("policy.select failed")
+            # Surface the failure on the UCI channel too: a bare null move loops
+            # silently in most GUIs, hiding config errors (bad checkpoint path,
+            # missing runtime dependency) behind "illegal move" popups.
+            self._send(f"info string error: {type(exc).__name__}: {exc}")
             self._send("bestmove 0000")
             return
 
@@ -191,6 +209,11 @@ class UciEngine:
             self._abort_event.set()
             self._stop_event.set()
             thread.join(timeout=5.0)
+            if thread.is_alive():
+                # A stuck controller/engine call outlived the join. Proceeding
+                # (e.g. policy.close on quit) will kill its engine from under it,
+                # which unblocks it with EngineTerminatedError — noisy but safe.
+                logger.warning("search thread still running after 5s abort join")
         self._search_thread = None
 
     # --- io --------------------------------------------------------------------
@@ -198,3 +221,37 @@ class UciEngine:
         with self._write_lock:
             self._out.write(line + "\n")
             self._out.flush()
+
+
+_GO_INT_KEYS = frozenset(
+    ("wtime", "btime", "winc", "binc", "movestogo", "depth", "nodes", "mate", "movetime")
+)
+# A UCI move token: from-square, to-square, optional promotion piece — or the
+# null move. Used to delimit `searchmoves`, whose move list ends at the first
+# token that isn't a move (the UCI spec allows further parameters after it).
+_MOVE_RE = re.compile(r"^(?:[a-h][1-8][a-h][1-8][qrbn]?|0000)$")
+
+
+def _parse_go(args: list[str]) -> dict:
+    """Parse ``go`` arguments into a dict (int values for clock/limit keys)."""
+    params: dict = {}
+    i = 0
+    while i < len(args):
+        key = args[i]
+        if key in _GO_INT_KEYS and i + 1 < len(args):
+            try:
+                params[key] = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif key == "searchmoves":  # consume move tokens only, then keep parsing
+            moves = []
+            i += 1
+            while i < len(args) and _MOVE_RE.match(args[i]):
+                moves.append(args[i])
+                i += 1
+            params[key] = moves
+        else:  # flags: infinite, ponder
+            params[key] = True
+            i += 1
+    return params
