@@ -18,6 +18,7 @@ Maia-3 runtime (used by the tests).
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -68,12 +69,17 @@ class MatildaModel:
         *,
         device: str = "cpu",
         maia3_model: str = "23m",
+        threads: int = 0,
+        cache_size: int = 4096,
         wrapper: object | None = None,
         wrapper_factory: Callable[[], object] | None = None,
     ) -> None:
         self.checkpoint = checkpoint
         self.device = device
         self.maia3_model = maia3_model
+        self.threads = int(threads)
+        self._cache: "OrderedDict[tuple, MatildaPrediction]" = OrderedDict()
+        self._cache_size = int(cache_size)
         self._wrapper = wrapper
         self._owns_wrapper = wrapper is None  # injected wrappers stay caller-owned
         self._wrapper_factory = wrapper_factory
@@ -91,8 +97,22 @@ class MatildaModel:
             )
 
     # --- loading -----------------------------------------------------------------
+    def set_threads(self, threads: int) -> None:
+        """Set torch's intra-op thread count (0 = leave torch's default)."""
+        self.threads = int(threads)
+        if self.threads > 0:
+            torch.set_num_threads(self.threads)
+
+    def set_cache_size(self, size: int) -> None:
+        """Resize (or with 0, disable) the prediction cache."""
+        self._cache_size = int(size)
+        while len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
+
     def _ensure_model(self) -> TXTC:
         if self._model is None:
+            if self.threads > 0:
+                torch.set_num_threads(self.threads)
             sd = torch.load(self.checkpoint, map_location="cpu")
             self._base_sd = {k: v for k, v in sd.items() if not k.startswith("sp")}
             # Size the style table from the checkpoint (rows = n_players + 1),
@@ -225,6 +245,28 @@ class MatildaModel:
             return None
         white = board.turn == chess.WHITE
 
+        # Prediction cache: repeated positions (analysis back-and-forth,
+        # repetitions) skip the whole Maia-3 + re-ranker pass. The key covers
+        # every input that changes the distribution, including the controller's
+        # identity and budget.
+        engine_sig = None
+        if controller is not None:
+            engine_sig = (
+                getattr(controller, "cmd", repr(type(controller))),
+                getattr(controller, "depth", None),
+                getattr(controller, "nodes", None),
+                getattr(controller, "timeout_s", None),
+            )
+        cache_key = (
+            board.fen(), tuple(board_history or ()), int(elo_self), int(elo_oppo),
+            float(tc_base), float(tc_inc), pid, engine_sig,
+        )
+        if self._cache_size > 0:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self._cache.move_to_end(cache_key)
+                return cached
+
         wrapper = self._ensure_wrapper()
         r = wrapper.infer(
             board,
@@ -320,13 +362,18 @@ class MatildaModel:
         if total > 0:
             probs = {u: p / total for u, p in probs.items()}
 
-        return MatildaPrediction(
+        prediction = MatildaPrediction(
             move_probs=probs,
             win_prob=float(r.win_prob),
             candidates=tuple(u for u in padded if u),
             prior_probs=dict(r.move_probs),
             engine_used=engine_used,
         )
+        if self._cache_size > 0:
+            self._cache[cache_key] = prediction
+            if len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
+        return prediction
 
     def close(self) -> None:
         # Only tear down a wrapper we created; an injected one is caller-owned

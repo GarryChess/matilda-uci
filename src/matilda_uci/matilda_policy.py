@@ -85,6 +85,9 @@ class MatildaPolicy:
         engine_cmd: str = "",
         engine_depth: int = 12,
         engine_nodes: int = 0,
+        engine_movetime: float = 0.0,
+        threads: int = 0,
+        cache_size: int = 4096,
         seed: int = 0,
     ) -> None:
         self.checkpoint = checkpoint
@@ -108,6 +111,9 @@ class MatildaPolicy:
         self.engine_cmd = engine_cmd
         self.engine_depth = int(engine_depth)
         self.engine_nodes = int(engine_nodes)
+        self.engine_movetime = float(engine_movetime)
+        self.threads = int(threads)
+        self.cache_size = int(cache_size)
         self._model = model
         self._model_factory = model_factory
         self._style_applied = False
@@ -188,7 +194,13 @@ class MatildaPolicy:
             UciOption("EngineDepth", "spin", default=str(self.engine_depth), min=1, max=40),
             UciOption("EngineNodes", "spin", default=str(self.engine_nodes),
                       min=0, max=10_000_000),
+            UciOption("EngineMovetime", "spin",
+                      default=str(int(self.engine_movetime * 1000)),
+                      min=0, max=600_000),  # milliseconds; 0 = uncapped
             UciOption("Device", "combo", default=self.device, var=("cpu", "mps", "cuda")),
+            UciOption("Threads", "spin", default=str(self.threads), min=0, max=64),
+            UciOption("CacheSize", "spin", default=str(self.cache_size),
+                      min=0, max=1_000_000),  # cached predictions; 0 = off
         ]
 
     def set_option(self, name: str, value: str) -> None:
@@ -234,9 +246,24 @@ class MatildaPolicy:
         elif key == "enginenodes":
             self.engine_nodes = _safe_int(value, self.engine_nodes)
             self._update_controller_limits()
+        elif key == "enginemovetime":  # milliseconds over UCI
+            self.engine_movetime = _safe_int(value, int(self.engine_movetime * 1000)) / 1000.0
+            self._update_controller_limits()
         elif key == "device" and value in ("cpu", "mps", "cuda") and value != self.device:
             self.device = value
             self._reset_model()
+        elif key == "threads":
+            self.threads = _safe_int(value, self.threads)
+            if self._model is not None:
+                set_threads = getattr(self._model, "set_threads", None)
+                if callable(set_threads):
+                    set_threads(self.threads)
+        elif key == "cachesize":
+            self.cache_size = _safe_int(value, self.cache_size)
+            if self._model is not None:
+                set_cache = getattr(self._model, "set_cache_size", None)
+                if callable(set_cache):
+                    set_cache(self.cache_size)
         else:
             logger.debug("MatildaPolicy: ignoring option %s=%s", name, value)
 
@@ -288,7 +315,8 @@ class MatildaPolicy:
         from .matilda import MatildaModel
 
         return MatildaModel(
-            self.checkpoint, device=self.device, maia3_model=self.maia3_model
+            self.checkpoint, device=self.device, maia3_model=self.maia3_model,
+            threads=self.threads, cache_size=self.cache_size,
         )
 
     def _reset_model(self) -> None:
@@ -306,7 +334,8 @@ class MatildaPolicy:
             from .matilda.search import UciSearchController
 
             self._controller = UciSearchController(
-                self.engine_cmd, depth=self.engine_depth, nodes=self.engine_nodes
+                self.engine_cmd, depth=self.engine_depth, nodes=self.engine_nodes,
+                timeout_s=self.engine_movetime or None,
             )
         return self._controller
 
@@ -318,11 +347,12 @@ class MatildaPolicy:
             self._controller = None
 
     def _update_controller_limits(self) -> None:
-        """Apply depth/nodes to a live controller in place — they only feed the
-        per-call search limit, so no reason to respawn the engine subprocess."""
+        """Apply depth/nodes/movetime to a live controller in place — they only
+        feed the per-call search limit, so no reason to respawn the engine."""
         if self._controller is not None:
             self._controller.depth = self.engine_depth
             self._controller.nodes = self.engine_nodes
+            self._controller.timeout_s = self.engine_movetime or None
 
     def _effective_elo(self) -> int:
         return effective_elo(self.elo_self, self.elo_min, self.elo_max, self.limit_strength)

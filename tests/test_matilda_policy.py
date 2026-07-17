@@ -179,6 +179,14 @@ def test_empty_placeholder_option_value() -> None:
     assert policy.engine_cmd == ""
 
 
+def test_engine_movetime_option_milliseconds() -> None:
+    policy, _ = make_policy()
+    policy.set_option("EngineMovetime", "1500")
+    assert policy.engine_movetime == 1.5
+    policy.set_option("EngineMovetime", "0")
+    assert policy.engine_movetime == 0.0
+
+
 # --- engine go-parsing integration -----------------------------------------------
 
 def test_parse_go() -> None:
