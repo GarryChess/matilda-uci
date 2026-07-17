@@ -83,11 +83,85 @@ Stockfish's objective line.
 
 ## Playing it yourself at different strengths
 
+The default is `--elo 1500` (a solid club player); the trained range is
+1000–3200. `--elo` changes *style*, not just strength — expect the 1200 to
+grab material and miss back-rank ideas, and the 2800 to play principled,
+theory-heavy chess. When you don't pass `--opp-elo`, the model assumes the
+opponent is your own strength.
+
 ```bash
-matilda-uci --elo 1200    # club beginner: plays human 1200 moves, mistakes included
-matilda-uci --elo 2000    # strong club player
-matilda-uci --elo 2800 --engine-cmd stockfish --engine-depth 16   # top-band, engine-assisted
+matilda-uci                             # default: Elo 1500, no engine assist
+matilda-uci --elo 1200                  # club beginner, mistakes included
+matilda-uci --elo 2000 --opp-elo 2400   # club player facing a stronger opponent
+matilda-uci --elo 2800 --engine-cmd stockfish --engine-depth 16   # top band
 ```
 
-`--elo` changes *style*, not just strength — expect the 1200 to grab material
-and miss back-rank ideas, and the 2800 to play principled, theory-heavy chess.
+Search-controller budgets compose freely (depth, nodes, or a time cap):
+
+```bash
+# fixed depth (how the training annotations were made; depth 12 is the default)
+matilda-uci --elo 3200 --engine-cmd stockfish --engine-depth 21
+
+# fixed node budget — deterministic cost, the natural mode for Lc0
+matilda-uci --elo 3200 --engine-cmd stockfish --engine-nodes 50000
+
+# wall-clock cap per position, alone or combined with a depth ceiling
+matilda-uci --elo 3200 --engine-cmd stockfish --engine-movetime 0.5
+matilda-uci --elo 3200 --engine-cmd stockfish --engine-depth 21 --engine-movetime 1.0
+```
+
+Engine-performance knobs: `--threads N` sets torch's inference threads and
+`--cache-size N` the prediction cache (repeated positions skip inference);
+both are also UCI options (`Threads`, `CacheSize`) alongside
+`EngineDepth`/`EngineNodes`/`EngineMovetime`.
+
+## Bring your own search engine
+
+Any UCI engine can be the search controller — the model consumes only
+(centipawns, rank, scored-flag) per candidate, so the backend is swappable:
+
+```bash
+# Stockfish (default recommendation)
+matilda-uci --elo 3200 --engine-cmd stockfish
+
+# Lc0 — use a node budget; tested with lc0 v0.32 on Metal
+matilda-uci --elo 3200 --engine-cmd 'lc0 --weights=/path/to/net.pb.gz' --engine-nodes 800
+
+# anything else that speaks UCI
+matilda-uci --elo 3200 --engine-cmd '/path/to/your-engine --your-flags'
+```
+
+Notes for non-Stockfish engines:
+
+- Matilda passes **no engine-specific options** to the controller — only the
+  moves to score and the search limit — so engines that lack `Hash`/`Threads`
+  or other Stockfish-isms work unmodified (option probes are best-effort and
+  ignored on failure).
+- Lc0 wants `--engine-nodes` rather than depth (its depth semantics differ);
+  the training-time Lc0 annotations used 800 nodes.
+- Controllers run as separate OS processes on the CPU; `--device` only moves
+  Matilda's own weights (Maia-3 + re-ranker + style) to `mps`/`cuda`.
+- For a custom *allocation policy* (different budgets per candidate — the
+  Botvinnik idea), implement the two-method `SearchController` protocol in
+  Python instead: see [developer.md](../developer.md).
+
+## Playing as a specific player (style vectors)
+
+Personalization takes three files: the base model and the **style
+transformation** (`style_token_3k.pt`) ship with Matilda; the third is a
+32-dimensional embedding of the player you want, supplied at runtime. Fit one
+from a PGN of their games:
+
+```bash
+.venv/bin/python demos/fit_style_vector.py tal_games.pgn \
+    --player "Tal" --out tal.pt
+matilda-uci --elo 2700 \
+    --style-checkpoint checkpoints/style_token_3k.pt --style-vector tal.pt
+```
+
+Measured on held-out moves the fit never saw: the Tal vector predicts Tal's
+moves **7.8% better** (NLL) than the style-free base (top-1 60.8% → 62.8%,
+2000 OTB moves), and a Magnus vector fitted on his lichess blitz account's
+games gains **2.7%** (top-1 59.8% → 61.5%). Without a style vector the engine
+runs entirely style-free — the "no style" case needs no weights at all. Fits
+break even around ~60 moves of games and are clearly positive past ~100.

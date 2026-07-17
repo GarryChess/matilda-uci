@@ -79,12 +79,12 @@ Matilda-backend flags:
 | `--checkpoint` | `checkpoints/base_3k.pt` | The trained re-ranker weights |
 | `--tc-base` / `--tc-inc` | 180 / 0 | Time control fed to the model (blitz default) |
 | `--no-auto-tc` | off | Don't latch the real TC from the first `go` clocks |
-| `--style-checkpoint` | — | Optional style-token overlay (personalization) |
-| `--style-posthoc` | — | Optional post-hoc new-player embeddings |
-| `--style-player-id` | -1 | Player row to imitate (-1 = style-free) |
+| `--style-checkpoint` | — | Style transformation weights (pairs with `--style-vector`) |
+| `--style-vector` | — | A 32-d player embedding to imitate (`demos/fit_style_vector.py`) |
 | `--engine-cmd` | — | Search controller, e.g. `stockfish` or `lc0 --weights=...` |
-| `--engine-depth` / `--engine-nodes` | 12 / 0 | Controller search budget (nodes>0 = node limit) |
-| `--maia3-model` | `23m` | Maia-3 variant |
+| `--engine-depth` / `--engine-nodes` / `--engine-movetime` | 12 / 0 / 0 | Controller search budget |
+| `--threads` / `--cache-size` | 0 / 4096 | torch threads; prediction-cache entries |
+| `--maia3-model` | `23m` | Maia-3 variant (non-23m warns: untrained-against) |
 
 Legacy maia2-backend flag: `--maia-type` (`rapid`/`blitz`) — only valid with
 `--backend maia2`.
@@ -93,8 +93,9 @@ Legacy maia2-backend flag: `--maia-type` (`rapid`/`blitz`) — only valid with
 
 Set from any GUI's engine-options dialog: `UCI_LimitStrength`, `UCI_Elo`
 (1000–3200), `OpponentElo`, `TimeControlBase`/`TimeControlInc`/`AutoLatchTC`,
-`Temperature`, `Checkpoint`, `StyleCheckpoint`/`StylePosthoc`/`StylePlayerId`,
-`EngineCmd`/`EngineDepth`/`EngineNodes`, and `Device`.
+`Temperature`, `Checkpoint`, `StyleCheckpoint`/`StyleVector`,
+`EngineCmd`/`EngineDepth`/`EngineNodes`/`EngineMovetime`, `Device`,
+`Threads`, and `CacheSize`.
 
 The model is rating-conditioned, so `UCI_Elo` maps directly onto playing style
 and strength: the engine plays like a human of that rating, including

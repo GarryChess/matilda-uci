@@ -86,6 +86,33 @@ def test_history_passed_to_model() -> None:
     assert hist[0] == chess.Board().fen()  # oldest first
 
 
+def test_history_never_leaks_across_games() -> None:
+    """A new game (or a bare-FEN position) must start with an empty history —
+    stale FENs from the previous game would corrupt Maia-3's conditioning."""
+    import io
+
+    policy, model = make_policy()
+    engine = UciEngine(policy, out=io.StringIO())
+    engine.handle_command("position startpos moves e2e4 e7e5 g1f3")
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert len(model.calls[-1]["board_history"]) == 3
+
+    engine.handle_command("ucinewgame")
+    engine.handle_command("position startpos")
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert model.calls[-1]["board_history"] == []  # fresh game, no leak
+
+    # analysis from a bare FEN: no history either
+    engine.handle_command(
+        "position fen r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"
+    )
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert model.calls[-1]["board_history"] == []
+
+
 def test_board_history_caps_at_eight() -> None:
     board = chess.Board()
     for mv in ["g1f3", "g8f6", "f3g1", "f6g8"] * 3:  # 12 plies

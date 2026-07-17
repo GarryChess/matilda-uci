@@ -100,31 +100,33 @@ options.
 
 ## Player-style personalization
 
-Two artifacts, both trained against the frozen deploy base:
+Three files make a personalized Matilda:
 
-- `style_token_3k.pt` — a 32-d embedding table for the ~7k training players
-  plus the projection; row 0 is the trained generic fallback.
-- `posthoc_lostyle_3k*.pt` — embeddings for NEW players, fitted post-hoc from
-  k moves of their games (the paper's k-shot: break-even ≈60 moves, clearly
-  positive by ≈100).
+1. **the base model** (`base_3k.pt`) — ships with Matilda;
+2. **the style transformation** (`style_token_3k.pt`) — the trained projection
+   that turns an embedding into a context nudge; ships with Matilda;
+3. **the player's 32-d embedding** — yours to supply at runtime. This is the
+   only artifact you produce for a new player, and it "just works":
 
 ```python
 model = MatildaModel("checkpoints/base_3k.pt")
-rows = model.load_style("checkpoints/style_token_3k.pt")          # -> 6999
-# rows = model.load_style(style, posthoc="posthoc_lostyle_3k.pt") # adds new players
-
-pred_generic = model.predict(board)               # style-free
-pred_player  = model.predict(board, pid=1234)     # imitate player row 1234
+pid = model.load_style_vector("checkpoints/style_token_3k.pt", "tal.pt")
+pred = model.predict(board, pid=pid)     # imitate the supplied player
+pred = model.predict(board)              # style-free: no weights needed at all
 ```
 
-`demos/style_demo.py` measures the effect (per-player distribution shifts on
-a fixed position set). Paper-scale numbers: the style token is worth +0.41%
-move-prediction overall and +1.1–1.5% on GM bands, over an already-strong
-base. Via UCI, the same is `StyleCheckpoint`/`StylePosthoc`/`StylePlayerId`.
+Fit a vector from a PGN of the player's games with
+`demos/fit_style_vector.py` (only the 32-d row optimizes; base and
+transformation stay frozen — the paper's post-hoc fit; break-even ≈60 moves,
+clearly positive past ≈100). Measured on held-out moves: a Tal vector (2000
+OTB moves) predicts Tal **7.8% better** (NLL) than the style-free base; a
+Magnus vector from his lichess blitz account gains **2.7%**. Via UCI, the
+same is `StyleCheckpoint` + `StyleVector`; `demos/style_demo.py` visualizes
+per-position distribution shifts.
 
-To fit an embedding for a brand-new player you need the paper pipeline's
-`train/fit_embeddings_posthoc.py` (only the player's 32-d row trains; base and
-projection stay frozen).
+(Research note: `MatildaModel.load_style` can still mount the paper's full
+per-player training tables, but those embeddings were fitted on modest data —
+treat them as a rough lower bound, not vendable player models.)
 
 ## Driving the UCI engine programmatically
 
