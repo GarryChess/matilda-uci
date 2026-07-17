@@ -168,6 +168,29 @@ def test_style_overlay_and_posthoc_rows(zero_ckpt, tmp_path) -> None:
     assert abs(sum(pred.move_probs.values()) - 1.0) < 1e-6
 
 
+def test_load_style_vector_three_file_flow(zero_ckpt, tmp_path) -> None:
+    """The public personalization path: base + transformation + user vector."""
+    style = generate_style(_Args(seed=1, n_players=10, base=zero_ckpt))
+    style_path = tmp_path / "style.pt"
+    torch.save(style, style_path)
+    vec = torch.randn(32)
+    vec_path = tmp_path / "player.pt"
+    torch.save(vec, vec_path)
+
+    model, _ = make_model(zero_ckpt)
+    pid = model.load_style_vector(str(style_path), str(vec_path))
+    assert pid == 1
+    assert torch.equal(model._model.spe.weight[1], vec)
+    pred = model.predict(chess.Board(), pid=pid)
+    assert abs(sum(pred.move_probs.values()) - 1.0) < 1e-6
+
+    # wrong dimensionality fails loudly
+    bad = tmp_path / "bad.pt"
+    torch.save(torch.randn(16), bad)
+    with pytest.raises(ValueError, match="16 dims"):
+        model.load_style_vector(str(style_path), str(bad))
+
+
 def test_pid_without_style_overlay_is_ignored(zero_ckpt) -> None:
     model, _ = make_model(zero_ckpt)
     pred = model.predict(chess.Board(), pid=3)
@@ -237,6 +260,31 @@ def test_non_23m_variant_warns(zero_ckpt, caplog) -> None:
     assert any("79m" in rec.message for rec in caplog.records)
 
 
+def test_prediction_cache_hits_and_respects_inputs(zero_ckpt) -> None:
+    model, wrapper = make_model(zero_ckpt)
+    board = chess.Board()
+    a = model.predict(board, elo_self=1500)
+    b = model.predict(board, elo_self=1500)  # identical inputs -> cache hit
+    assert b is a
+    assert len(wrapper.calls) == 1  # Maia-3 ran once
+    c = model.predict(board, elo_self=1600)  # different Elo -> miss
+    assert c is not a and len(wrapper.calls) == 2
+    model.set_cache_size(0)  # disable
+    d = model.predict(board, elo_self=1500)
+    assert d is not a and len(wrapper.calls) == 3
+
+
+def test_cache_lru_eviction(zero_ckpt) -> None:
+    model, wrapper = make_model(zero_ckpt)
+    model.set_cache_size(1)
+    b1, b2 = chess.Board(), chess.Board()
+    b2.push_uci("e2e4")
+    model.predict(b1)
+    model.predict(b2)  # evicts b1's entry
+    model.predict(b1)
+    assert len(wrapper.calls) == 3  # b1 recomputed after eviction
+
+
 def test_close_leaves_injected_wrapper_alone(zero_ckpt) -> None:
     class ClosableWrapper(FakeMaia3Wrapper):
         def __init__(self):
@@ -252,7 +300,10 @@ def test_close_leaves_injected_wrapper_alone(zero_ckpt) -> None:
     model.close()
     assert not wrapper.closed  # caller-owned: close() must not touch it
     # and a reused model keeps using the injected wrapper, not a real Maia-3
-    assert model.predict(chess.Board()) is not None
+    # (fresh position so the prediction cache can't answer instead)
+    after = chess.Board()
+    after.push_uci("d2d4")
+    assert model.predict(after) is not None
     assert len(wrapper.calls) == 2
 
 

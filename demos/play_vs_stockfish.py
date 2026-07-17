@@ -34,14 +34,16 @@ LICHESS_LEVELS = {1: (-9, 5), 2: (-5, 5), 3: (-1, 5), 4: (3, 5),
 
 
 def matilda_engine(
-    elo: int, temperature: float, engine_cmd: str = ""
+    elo: int, temperature: float, engine_cmd: str = "", seed: int = 0,
+    checkpoint: str = "", name: str = "Matilda",
 ) -> chess.engine.SimpleEngine:
     # Run straight from the checkout: no editable install required.
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO / "src") + os.pathsep + env.get("PYTHONPATH", "")
     argv = [sys.executable, "-m", "matilda_uci",
             "--elo", str(elo), "--temperature", str(temperature),
-            "--checkpoint", str(REPO / "checkpoints" / "base_3k.pt")]
+            "--seed", str(seed), "--name", name,
+            "--checkpoint", checkpoint or str(REPO / "checkpoints" / "base_3k.pt")]
     if engine_cmd:  # engine-assisted play (the top band's real configuration)
         argv += ["--engine-cmd", engine_cmd]
     return chess.engine.SimpleEngine.popen_uci(argv, cwd=REPO, env=env)
@@ -82,6 +84,13 @@ def main() -> int:
     ap.add_argument("--sf-movetime", type=float, default=0.5)
     ap.add_argument("--matilda-engine-cmd", default="",
                     help="give Matilda a search controller too (e.g. 'stockfish')")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="Matilda sampling seed (use distinct seeds for parallel runs)")
+    ap.add_argument("--matilda-checkpoint", default="",
+                    help="re-ranker checkpoint override (e.g. a zero-delta one, "
+                         "which plays exactly the raw Maia-3 prior)")
+    ap.add_argument("--matilda-name", default="Matilda",
+                    help="name used in PGN headers (e.g. 'Maia-3')")
     ap.add_argument("--max-plies", type=int, default=240)
     ap.add_argument("--out", default="demos/games")
     args = ap.parse_args()
@@ -94,7 +103,8 @@ def main() -> int:
     for pairing in args.pairings:
         elo_s, lvl_s = pairing.split(":")
         elo, level = int(elo_s), int(lvl_s)
-        matilda = matilda_engine(elo, args.temperature, args.matilda_engine_cmd)
+        matilda = matilda_engine(elo, args.temperature, args.matilda_engine_cmd,
+                                 args.seed, args.matilda_checkpoint, args.matilda_name)
         sf, depth = stockfish_engine(args.stockfish, level)
         sf_limit = chess.engine.Limit(depth=depth, time=args.sf_movetime)
         m_limit = chess.engine.Limit(time=10.0)
@@ -106,10 +116,11 @@ def main() -> int:
                 white, black = (matilda, sf) if m_white else (sf, matilda)
                 wl, bl = (m_limit, sf_limit) if m_white else (sf_limit, m_limit)
                 game = play_game(white, black, wl, bl, args.max_plies)
-                w_name = f"Matilda (Elo {elo})" if m_white else f"Stockfish lvl{level}"
-                b_name = f"Stockfish lvl{level}" if m_white else f"Matilda (Elo {elo})"
+                m_name = f"{args.matilda_name} (Elo {elo})"
+                w_name = m_name if m_white else f"Stockfish lvl{level}"
+                b_name = f"Stockfish lvl{level}" if m_white else m_name
                 game.headers.update({
-                    "Event": f"Matilda demo: Elo {elo} vs lichess level {level}",
+                    "Event": f"{args.matilda_name} demo: Elo {elo} vs lichess level {level}",
                     "Site": "local", "Date": today, "Round": str(g + 1),
                     "White": w_name, "Black": b_name,
                 })
@@ -130,7 +141,7 @@ def main() -> int:
             sf.quit()
         extra = f" ({unfinished} unfinished)" if unfinished else ""
         summary.append(
-            f"| Matilda @ {elo} | lichess level {level} (skill {LICHESS_LEVELS[level][0]}, "
+            f"| {args.matilda_name} @ {elo} | lichess level {level} (skill {LICHESS_LEVELS[level][0]}, "
             f"depth {LICHESS_LEVELS[level][1]}) | {score['matilda']:g} - "
             f"{score['stockfish']:g}{extra} |"
         )
@@ -142,10 +153,9 @@ def main() -> int:
              f"(temperature {args.temperature}; lichess levels via the fishnet "
              f"mapping{assist}).",
              "",
-             "Matilda imitates a human of the given Elo — mistakes included — "
-             "rather than playing for the win, so losing to a stronger engine "
-             "level is the expected, *human* result. Rerun with "
-             "`--matilda-engine-cmd stockfish` for the engine-assisted top band.",
+             "Pairings match each Matilda Elo against the lichess level of "
+             "comparable strength (fishnet levels 6/7/8 sit roughly at "
+             "2300/2700/3100), so a hold or better is the expectation in each row.",
              "", "| Matilda | Opponent | Score (M - SF) |", "|---|---|---|", *summary, ""]
     (out / "README.md").write_text("\n".join(table))
     print(f"\nsummary -> {out / 'README.md'}")

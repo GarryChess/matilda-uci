@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Show that player-style embeddings measurably change Matilda's play.
 
+(Research-table demo: this exercises the paper's full per-player embedding
+table via ``MatildaModel.load_style``. The supported path for personalizing
+YOUR engine is a runtime 32-d vector — ``demos/fit_style_vector.py`` and
+``--style-vector``; those tables' players were fitted on modest data and are
+a rough lower bound, not vendable player models.)
+
 Loads the deploy base + the style-token overlay, then compares the style-free
 distribution against several player identities on a fixed set of positions.
 Reported per player:

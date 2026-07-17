@@ -23,13 +23,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--backend", default="matilda", choices=["matilda", "maia2"],
-        help="matilda = Maia-3 + the paper's re-ranker (default); maia2 = legacy v1.",
+        help="matilda (default) IS the Maia-3-based engine: frozen Maia-3 + the "
+             "paper's trained re-ranker. maia2 = the older Maia-2 model, kept "
+             "only as a legacy/comparison backend.",
     )
     parser.add_argument("--elo", type=int, default=1500, help="Engine (self) Elo.")
-    parser.add_argument("--opp-elo", type=int, default=1500, help="Opponent Elo.")
+    parser.add_argument(
+        "--opp-elo", type=int, default=None,
+        help="Opponent Elo the model conditions on (default: same as --elo).",
+    )
     parser.add_argument(
         "--temperature", type=float, default=0.0,
         help="0 = always the most human-likely move; >0 samples for variety.",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=0,
+        help="RNG seed for temperature sampling (distinct seeds -> distinct games).",
     )
     parser.add_argument("--name", default="Matilda", help="Engine name shown to the GUI.")
     parser.add_argument(
@@ -38,7 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--device", default="cpu",
-        help="matilda: cpu/mps/cuda; maia2: cpu/gpu.",
+        help="Device for the model weights (Maia-3 + re-ranker + style): "
+             "matilda: cpu/mps/cuda; maia2: cpu/gpu. Search-controller engines "
+             "(Stockfish/Lc0) are separate processes and always run on CPU.",
     )
 
     matilda = parser.add_argument_group("matilda backend")
@@ -58,15 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     matilda.add_argument(
         "--style-checkpoint", default="",
-        help="Optional style-token overlay (e.g. checkpoints/style_token_3k.pt).",
+        help="The style transformation weights (e.g. checkpoints/style_token_3k.pt); "
+             "pairs with --style-vector.",
     )
     matilda.add_argument(
-        "--style-posthoc", default="",
-        help="Optional post-hoc new-player embeddings (posthoc_lostyle_3k*.pt).",
-    )
-    matilda.add_argument(
-        "--style-player-id", type=int, default=-1,
-        help="Player row to imitate (-1 = style-free; 0 = generic player).",
+        "--style-vector", default="",
+        help="A 32-d player embedding (.pt) to imitate — fit one from a PGN "
+             "with demos/fit_style_vector.py. Requires --style-checkpoint.",
     )
     matilda.add_argument(
         "--engine-cmd", default="",
@@ -77,6 +86,18 @@ def build_parser() -> argparse.ArgumentParser:
     matilda.add_argument(
         "--engine-nodes", type=int, default=0,
         help=">0 switches the controller to a fixed node budget (Lc0-style).",
+    )
+    matilda.add_argument(
+        "--engine-movetime", type=float, default=0.0,
+        help=">0 caps the controller's per-position search time in seconds.",
+    )
+    matilda.add_argument(
+        "--threads", type=int, default=0,
+        help="torch intra-op threads for model inference (0 = torch default).",
+    )
+    matilda.add_argument(
+        "--cache-size", type=int, default=4096,
+        help="prediction cache entries (repeated positions skip inference; 0 = off).",
     )
 
     maia2 = parser.add_argument_group("maia2 backend (legacy)")
@@ -110,9 +131,21 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
                 "--checkpoint /path/to/base_3k.pt (see README for where to get it)"
             )
         for flag, path in (("--style-checkpoint", args.style_checkpoint),
-                           ("--style-posthoc", args.style_posthoc)):
+                           ("--style-vector", args.style_vector)):
             if path and not Path(path).is_file():
                 parser.error(f"{flag} file not found: {path!r}")
+        if args.style_vector and not args.style_checkpoint:
+            parser.error(
+                "--style-vector needs --style-checkpoint (the style "
+                "transformation weights the vector is applied through)"
+            )
+        if args.maia3_model != "23m":
+            print(
+                f"warning: --maia3-model {args.maia3_model!r}: every shipped "
+                "re-ranker was trained against '23m' features; play quality "
+                "with other variants is unverified.",
+                file=sys.stderr,
+            )
         if importlib.util.find_spec("maia3") is None:
             parser.error(
                 "the 'maia3' package is required for the matilda backend; install "
@@ -128,15 +161,17 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
 
 
 def build_policy(args: argparse.Namespace):
+    opp_elo = args.opp_elo if args.opp_elo is not None else args.elo
     if args.backend == "maia2":
         from .policy import MaiaPolicy
 
         return MaiaPolicy(
             elo_self=args.elo,
-            elo_oppo=args.opp_elo,
+            elo_oppo=opp_elo,
             maia_type=args.maia_type or "rapid",
             device=args.device,
             temperature=args.temperature,
+            seed=args.seed,
         )
     from .matilda_policy import MatildaPolicy
 
@@ -145,17 +180,20 @@ def build_policy(args: argparse.Namespace):
         device=args.device,
         maia3_model=args.maia3_model,
         elo_self=args.elo,
-        elo_oppo=args.opp_elo,
+        elo_oppo=opp_elo,
         tc_base=args.tc_base,
         tc_inc=args.tc_inc,
         auto_latch_tc=not args.no_auto_tc,
         temperature=args.temperature,
         style_checkpoint=args.style_checkpoint,
-        style_posthoc=args.style_posthoc,
-        style_player_id=args.style_player_id,
+        style_vector=args.style_vector,
         engine_cmd=args.engine_cmd,
         engine_depth=args.engine_depth,
         engine_nodes=args.engine_nodes,
+        engine_movetime=args.engine_movetime,
+        threads=args.threads,
+        cache_size=args.cache_size,
+        seed=args.seed,
     )
 
 

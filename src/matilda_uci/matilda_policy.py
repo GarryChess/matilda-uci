@@ -80,11 +80,13 @@ class MatildaPolicy:
         elo_min: int = 1000,
         elo_max: int = 3200,
         style_checkpoint: str = "",
-        style_posthoc: str = "",
-        style_player_id: int = -1,
+        style_vector: str = "",
         engine_cmd: str = "",
         engine_depth: int = 12,
         engine_nodes: int = 0,
+        engine_movetime: float = 0.0,
+        threads: int = 0,
+        cache_size: int = 4096,
         seed: int = 0,
     ) -> None:
         self.checkpoint = checkpoint
@@ -103,11 +105,14 @@ class MatildaPolicy:
         self.elo_min = int(elo_min)
         self.elo_max = int(elo_max)
         self.style_checkpoint = style_checkpoint
-        self.style_posthoc = style_posthoc
-        self.style_player_id = int(style_player_id)
+        self.style_vector = style_vector
+        self._style_pid: int | None = None
         self.engine_cmd = engine_cmd
         self.engine_depth = int(engine_depth)
         self.engine_nodes = int(engine_nodes)
+        self.engine_movetime = float(engine_movetime)
+        self.threads = int(threads)
+        self.cache_size = int(cache_size)
         self._model = model
         self._model_factory = model_factory
         self._style_applied = False
@@ -129,7 +134,7 @@ class MatildaPolicy:
             tc_base=self.tc_base,
             tc_inc=self.tc_inc,
             controller=self._ensure_controller(),
-            pid=self.style_player_id if self.style_player_id >= 0 else None,
+            pid=self._style_pid,
         )
         if pred is None:
             return PolicyResult(best_uci=None)
@@ -181,14 +186,18 @@ class MatildaPolicy:
             UciOption("Temperature", "string", default=f"{self.temperature:.2f}"),
             UciOption("Checkpoint", "string", default=self.checkpoint),
             UciOption("StyleCheckpoint", "string", default=self.style_checkpoint or "<empty>"),
-            UciOption("StylePosthoc", "string", default=self.style_posthoc or "<empty>"),
-            UciOption("StylePlayerId", "spin", default=str(self.style_player_id),
-                      min=-1, max=1_000_000),
+            UciOption("StyleVector", "string", default=self.style_vector or "<empty>"),
             UciOption("EngineCmd", "string", default=self.engine_cmd or "<empty>"),
             UciOption("EngineDepth", "spin", default=str(self.engine_depth), min=1, max=40),
             UciOption("EngineNodes", "spin", default=str(self.engine_nodes),
                       min=0, max=10_000_000),
+            UciOption("EngineMovetime", "spin",
+                      default=str(int(self.engine_movetime * 1000)),
+                      min=0, max=600_000),  # milliseconds; 0 = uncapped
             UciOption("Device", "combo", default=self.device, var=("cpu", "mps", "cuda")),
+            UciOption("Threads", "spin", default=str(self.threads), min=0, max=64),
+            UciOption("CacheSize", "spin", default=str(self.cache_size),
+                      min=0, max=1_000_000),  # cached predictions; 0 = off
         ]
 
     def set_option(self, name: str, value: str) -> None:
@@ -220,11 +229,9 @@ class MatildaPolicy:
         elif key == "stylecheckpoint" and value != self.style_checkpoint:
             self.style_checkpoint = value
             self._reset_model()
-        elif key == "styleposthoc" and value != self.style_posthoc:
-            self.style_posthoc = value
+        elif key == "stylevector" and value != self.style_vector:
+            self.style_vector = value
             self._reset_model()
-        elif key == "styleplayerid":
-            self.style_player_id = _safe_int(value, self.style_player_id)
         elif key == "enginecmd" and value != self.engine_cmd:
             self.engine_cmd = value
             self._reset_controller()
@@ -234,9 +241,24 @@ class MatildaPolicy:
         elif key == "enginenodes":
             self.engine_nodes = _safe_int(value, self.engine_nodes)
             self._update_controller_limits()
+        elif key == "enginemovetime":  # milliseconds over UCI
+            self.engine_movetime = _safe_int(value, int(self.engine_movetime * 1000)) / 1000.0
+            self._update_controller_limits()
         elif key == "device" and value in ("cpu", "mps", "cuda") and value != self.device:
             self.device = value
             self._reset_model()
+        elif key == "threads":
+            self.threads = _safe_int(value, self.threads)
+            if self._model is not None:
+                set_threads = getattr(self._model, "set_threads", None)
+                if callable(set_threads):
+                    set_threads(self.threads)
+        elif key == "cachesize":
+            self.cache_size = _safe_int(value, self.cache_size)
+            if self._model is not None:
+                set_cache = getattr(self._model, "set_cache_size", None)
+                if callable(set_cache):
+                    set_cache(self.cache_size)
         else:
             logger.debug("MatildaPolicy: ignoring option %s=%s", name, value)
 
@@ -276,11 +298,21 @@ class MatildaPolicy:
             factory = self._model_factory or self._build_model
             self._model = factory()
             self._style_applied = False
-        if self.style_checkpoint and not self._style_applied:
-            load_style = getattr(self._model, "load_style", None)
-            if callable(load_style):
-                rows = load_style(self.style_checkpoint, self.style_posthoc or None)
-                logger.info("style overlay loaded: %d player rows", rows)
+            self._style_pid = None
+        if self.style_checkpoint and self.style_vector and not self._style_applied:
+            load_vec = getattr(self._model, "load_style_vector", None)
+            if callable(load_vec):
+                self._style_pid = load_vec(self.style_checkpoint, self.style_vector)
+                logger.info(
+                    "style vector %s loaded (transformation: %s)",
+                    self.style_vector, self.style_checkpoint,
+                )
+            self._style_applied = True
+        elif self.style_checkpoint and not self.style_vector and not self._style_applied:
+            logger.warning(
+                "StyleCheckpoint set without StyleVector; playing style-free "
+                "(supply a 32-d embedding file — see demos/fit_style_vector.py)"
+            )
             self._style_applied = True
         return self._model
 
@@ -288,7 +320,8 @@ class MatildaPolicy:
         from .matilda import MatildaModel
 
         return MatildaModel(
-            self.checkpoint, device=self.device, maia3_model=self.maia3_model
+            self.checkpoint, device=self.device, maia3_model=self.maia3_model,
+            threads=self.threads, cache_size=self.cache_size,
         )
 
     def _reset_model(self) -> None:
@@ -306,7 +339,8 @@ class MatildaPolicy:
             from .matilda.search import UciSearchController
 
             self._controller = UciSearchController(
-                self.engine_cmd, depth=self.engine_depth, nodes=self.engine_nodes
+                self.engine_cmd, depth=self.engine_depth, nodes=self.engine_nodes,
+                timeout_s=self.engine_movetime or None,
             )
         return self._controller
 
@@ -318,11 +352,12 @@ class MatildaPolicy:
             self._controller = None
 
     def _update_controller_limits(self) -> None:
-        """Apply depth/nodes to a live controller in place — they only feed the
-        per-call search limit, so no reason to respawn the engine subprocess."""
+        """Apply depth/nodes/movetime to a live controller in place — they only
+        feed the per-call search limit, so no reason to respawn the engine."""
         if self._controller is not None:
             self._controller.depth = self.engine_depth
             self._controller.nodes = self.engine_nodes
+            self._controller.timeout_s = self.engine_movetime or None
 
     def _effective_elo(self) -> int:
         return effective_elo(self.elo_self, self.elo_min, self.elo_max, self.limit_strength)

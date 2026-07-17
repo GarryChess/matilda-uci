@@ -45,5 +45,29 @@ def test_missing_style_checkpoint_is_rejected(tmp_path) -> None:
         )
 
 
+def test_style_vector_requires_style_checkpoint(tmp_path) -> None:
+    ckpt = tmp_path / "base.pt"
+    vec = tmp_path / "vec.pt"
+    ckpt.write_bytes(b"x")
+    vec.write_bytes(b"x")
+    with pytest.raises(SystemExit):
+        _validate(["--checkpoint", str(ckpt), "--style-vector", str(vec)])
+
+
 def test_maia2_backend_accepts_maia_type_and_gpu() -> None:
     _validate(["--backend", "maia2", "--maia-type", "blitz", "--device", "gpu"])
+
+
+def test_opp_elo_defaults_to_elo(tmp_path) -> None:
+    from matilda_uci.cli import build_policy
+
+    ckpt = tmp_path / "base.pt"
+    ckpt.write_bytes(b"x")
+    parser = build_parser()
+    args = parser.parse_args(["--elo", "2400", "--checkpoint", str(ckpt)])
+    policy = build_policy(args)
+    assert policy.elo_oppo == 2400  # follows --elo when not given
+    args = parser.parse_args(
+        ["--elo", "2400", "--opp-elo", "1800", "--checkpoint", str(ckpt)]
+    )
+    assert build_policy(args).elo_oppo == 1800  # explicit value wins

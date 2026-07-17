@@ -18,6 +18,7 @@ Maia-3 runtime (used by the tests).
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -68,12 +69,17 @@ class MatildaModel:
         *,
         device: str = "cpu",
         maia3_model: str = "23m",
+        threads: int = 0,
+        cache_size: int = 4096,
         wrapper: object | None = None,
         wrapper_factory: Callable[[], object] | None = None,
     ) -> None:
         self.checkpoint = checkpoint
         self.device = device
         self.maia3_model = maia3_model
+        self.threads = int(threads)
+        self._cache: "OrderedDict[tuple, MatildaPrediction]" = OrderedDict()
+        self._cache_size = int(cache_size)
         self._wrapper = wrapper
         self._owns_wrapper = wrapper is None  # injected wrappers stay caller-owned
         self._wrapper_factory = wrapper_factory
@@ -91,8 +97,22 @@ class MatildaModel:
             )
 
     # --- loading -----------------------------------------------------------------
+    def set_threads(self, threads: int) -> None:
+        """Set torch's intra-op thread count (0 = leave torch's default)."""
+        self.threads = int(threads)
+        if self.threads > 0:
+            torch.set_num_threads(self.threads)
+
+    def set_cache_size(self, size: int) -> None:
+        """Resize (or with 0, disable) the prediction cache."""
+        self._cache_size = int(size)
+        while len(self._cache) > self._cache_size:
+            self._cache.popitem(last=False)
+
     def _ensure_model(self) -> TXTC:
         if self._model is None:
+            if self.threads > 0:
+                torch.set_num_threads(self.threads)
             sd = torch.load(self.checkpoint, map_location="cpu")
             self._base_sd = {k: v for k, v in sd.items() if not k.startswith("sp")}
             # Size the style table from the checkpoint (rows = n_players + 1),
@@ -144,7 +164,49 @@ class MatildaModel:
         self._model = model
         self._style_loaded = True
         self._n_style_rows = rows
+        self._cache.clear()  # the style changes every distribution
         return rows
+
+    def load_style_vector(self, style_checkpoint: str, vector: object) -> int:
+        """Personalize with a user-supplied 32-d embedding — the public path.
+
+        Three files make a personalized Matilda: the base model (this object's
+        ``checkpoint``), the style *transformation* (``style_checkpoint`` — the
+        trained projection that turns an embedding into a context nudge), and
+        the player's own 32-d embedding, supplied here as a tensor or a path to
+        a ``.pt`` file holding one (see ``demos/fit_style_vector.py`` to fit one
+        from a PGN). Returns the pid to pass to :meth:`predict` (always 1;
+        row 0 keeps the trained generic-player fallback).
+        """
+        self._ensure_model()  # populates _base_sd
+        assert self._base_sd is not None
+        tok = torch.load(style_checkpoint, map_location="cpu")
+        sdim = int(tok["sdim"])
+        if isinstance(vector, (str, bytes)):
+            loaded = torch.load(vector, map_location="cpu")
+            if isinstance(loaded, dict):  # accept {"vector": ...} wrappers
+                loaded = loaded.get("vector", loaded.get("spe_new"))
+            vector = loaded
+        vec = torch.as_tensor(vector, dtype=torch.float32).reshape(-1)
+        if vec.numel() != sdim:
+            raise ValueError(
+                f"style vector has {vec.numel()} dims; this style transformation "
+                f"expects {sdim}"
+            )
+
+        model = TXTC(sdim=sdim, n_players=1)  # row 0 generic, row 1 the player
+        model.load_state_dict(self._base_sd, strict=False)
+        spp_only = {k: v for k, v in tok["state_dict"].items() if not k.startswith("spe")}
+        model.load_state_dict(spp_only, strict=False)
+        with torch.no_grad():
+            model.spe.weight[0] = tok["state_dict"]["spe.weight"][0]
+            model.spe.weight[1] = vec
+        model.to(self.device).eval()
+        self._model = model
+        self._style_loaded = True
+        self._n_style_rows = 2
+        self._cache.clear()  # the style changes every distribution
+        return 1
 
     @property
     def style_rows(self) -> int:
@@ -224,6 +286,28 @@ class MatildaModel:
         if not legal:
             return None
         white = board.turn == chess.WHITE
+
+        # Prediction cache: repeated positions (analysis back-and-forth,
+        # repetitions) skip the whole Maia-3 + re-ranker pass. The key covers
+        # every input that changes the distribution, including the controller's
+        # identity and budget.
+        engine_sig = None
+        if controller is not None:
+            engine_sig = (
+                getattr(controller, "cmd", repr(type(controller))),
+                getattr(controller, "depth", None),
+                getattr(controller, "nodes", None),
+                getattr(controller, "timeout_s", None),
+            )
+        cache_key = (
+            board.fen(), tuple(board_history or ()), int(elo_self), int(elo_oppo),
+            float(tc_base), float(tc_inc), pid, engine_sig,
+        )
+        if self._cache_size > 0:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self._cache.move_to_end(cache_key)
+                return cached
 
         wrapper = self._ensure_wrapper()
         r = wrapper.infer(
@@ -320,13 +404,18 @@ class MatildaModel:
         if total > 0:
             probs = {u: p / total for u, p in probs.items()}
 
-        return MatildaPrediction(
+        prediction = MatildaPrediction(
             move_probs=probs,
             win_prob=float(r.win_prob),
             candidates=tuple(u for u in padded if u),
             prior_probs=dict(r.move_probs),
             engine_used=engine_used,
         )
+        if self._cache_size > 0:
+            self._cache[cache_key] = prediction
+            if len(self._cache) > self._cache_size:
+                self._cache.popitem(last=False)
+        return prediction
 
     def close(self) -> None:
         # Only tear down a wrapper we created; an injected one is caller-owned

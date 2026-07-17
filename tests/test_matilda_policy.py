@@ -41,9 +41,9 @@ class FakeModel:
                  for i, u in enumerate(legal)}
         return FakePrediction(probs)
 
-    def load_style(self, style, posthoc=None):
-        self.style_loads.append((style, posthoc))
-        return 7000
+    def load_style_vector(self, style, vector):
+        self.style_loads.append((style, vector))
+        return 1
 
     def close(self):
         self.closed = True
@@ -84,6 +84,33 @@ def test_history_passed_to_model() -> None:
     hist = model.calls[-1]["board_history"]
     assert len(hist) == 5  # all five prior positions (fewer than the 8 cap)
     assert hist[0] == chess.Board().fen()  # oldest first
+
+
+def test_history_never_leaks_across_games() -> None:
+    """A new game (or a bare-FEN position) must start with an empty history —
+    stale FENs from the previous game would corrupt Maia-3's conditioning."""
+    import io
+
+    policy, model = make_policy()
+    engine = UciEngine(policy, out=io.StringIO())
+    engine.handle_command("position startpos moves e2e4 e7e5 g1f3")
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert len(model.calls[-1]["board_history"]) == 3
+
+    engine.handle_command("ucinewgame")
+    engine.handle_command("position startpos")
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert model.calls[-1]["board_history"] == []  # fresh game, no leak
+
+    # analysis from a bare FEN: no history either
+    engine.handle_command(
+        "position fen r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"
+    )
+    engine.handle_command("go")
+    engine.join_search(timeout=5)
+    assert model.calls[-1]["board_history"] == []
 
 
 def test_board_history_caps_at_eight() -> None:
@@ -144,14 +171,18 @@ def test_elo_options_and_limit_strength() -> None:
     assert model.calls[-1]["elo_self"] == policy.elo_max
 
 
-def test_style_loaded_once_and_pid_passed() -> None:
-    policy, model = make_policy(style_checkpoint="style.pt", style_player_id=42)
+def test_style_vector_loaded_once_and_pid_passed() -> None:
+    policy, model = make_policy(style_checkpoint="style.pt", style_vector="tal.pt")
     policy.select(chess.Board())
     policy.select(chess.Board())
-    assert model.style_loads == [("style.pt", None)]
-    assert model.calls[-1]["pid"] == 42
-    policy.set_option("StylePlayerId", "-1")
+    assert model.style_loads == [("style.pt", "tal.pt")]
+    assert model.calls[-1]["pid"] == 1  # the loaded vector's row
+
+
+def test_style_checkpoint_without_vector_plays_style_free() -> None:
+    policy, model = make_policy(style_checkpoint="style.pt")
     policy.select(chess.Board())
+    assert model.style_loads == []  # nothing to load without a vector
     assert model.calls[-1]["pid"] is None
 
 
@@ -169,14 +200,23 @@ def test_option_declarations_include_matilda_specific() -> None:
     policy, _ = make_policy()
     names = {o.name for o in policy.uci_options()}
     assert {"UCI_Elo", "OpponentElo", "TimeControlBase", "TimeControlInc",
-            "AutoLatchTC", "Checkpoint", "StyleCheckpoint", "StylePlayerId",
-            "EngineCmd", "EngineDepth", "EngineNodes"} <= names
+            "AutoLatchTC", "Checkpoint", "StyleCheckpoint", "StyleVector",
+            "EngineCmd", "EngineDepth", "EngineNodes", "EngineMovetime",
+            "Threads", "CacheSize"} <= names
 
 
 def test_empty_placeholder_option_value() -> None:
     policy, _ = make_policy(engine_cmd="stockfish")
     policy.set_option("EngineCmd", "<empty>")
     assert policy.engine_cmd == ""
+
+
+def test_engine_movetime_option_milliseconds() -> None:
+    policy, _ = make_policy()
+    policy.set_option("EngineMovetime", "1500")
+    assert policy.engine_movetime == 1.5
+    policy.set_option("EngineMovetime", "0")
+    assert policy.engine_movetime == 0.0
 
 
 # --- engine go-parsing integration -----------------------------------------------

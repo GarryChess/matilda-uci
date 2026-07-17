@@ -1,5 +1,13 @@
 # Inference throughput by game phase
 
+**What is timed:** one full `MatildaModel.predict` call — Maia-3 forward pass,
+featurization, and the re-ranker forward — with **no search controller, no
+time limits, and no depth/node budgets involved anywhere**. The model has no
+search: every prediction is the same fixed amount of work (two neural-network
+forwards), so wall-clock per position is a faithful, configuration-free
+measure. Numbers below would only change with hardware, thread count, or
+device — never with any search setting.
+
 Full-chain `MatildaModel.predict` (Maia-3 23M -> featurize -> re-ranker)
 on Apple M3 Pro, Darwin 25.5.0, torch 2.13.0, device=cpu.
 Positions: rated blitz games, lichess_db_standard_rated_2026-06.pgn.zst (2026.06.01...), sampled per ply tranche with real history/Elos/TC. Intervals: rliable stratified bootstrap (2000 reps), mean [95% CI].

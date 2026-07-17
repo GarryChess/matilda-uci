@@ -1,0 +1,8 @@
+#!/bin/sh
+# Launcher for chess GUIs (BanksiaGUI, CuteChess, ...): runs matilda-uci
+# straight from this checkout — no pip install needed. Point your GUI's
+# "engine command" at this file; extra arguments pass through.
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+export PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
+cd "$REPO" || exit 1
+exec "$REPO/.venv/bin/python" -m matilda_uci "$@"

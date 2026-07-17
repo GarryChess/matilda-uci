@@ -1,18 +1,40 @@
 # Matilda
 
-A free human-like UCI chess engine.
+<img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
 
-Unlike Stockfish, Matilda doesn't try to play the *best* move — it plays the
-move a **human at a given Elo** would most likely play. It speaks the standard
+Long before brute-force search won, world champion **Mikhail Botvinnik**
+argued that a chess program should work the way a master does: don't examine
+every move — build a small candidate set the way a human would, and spend
+your calculation only there. He devoted his post-championship career (the
+PIONEER project; *Computers, Chess and Long-Range Planning*, 1970) to
+formalizing that selective, human-feature-focused search. Hardware went the
+other way, and Botvinnik's programme was shelved.
+
+Matilda's architecture is that idea, made practical by learning the human
+part instead of hand-coding it. A frozen human-move model (Maia-3) proposes
+the up-to-16 moves a human would actually consider in the position — the
+candidate set Botvinnik wanted — and the pluggable search controller
+decides how to spend engine effort across *only those moves*. Stockfish and
+Lc0 plug in today; the `SearchController` API (see
+[developer.md](developer.md)) exists precisely so anyone can implement their
+own allocation policy — deeper on the moves that look most interesting for a
+human, shallower elsewhere. The re-ranker then blends what the engine found
+back into the human distribution. It should "just work" with any controller:
+that composability, not any single engine, is the point.
+
+Matilda speaks the standard
 [UCI](https://www.chessprogramming.org/UCI) protocol, so it plugs into any
 chess GUI (CuteChess, Arena, BanksiaGUI, En Croissant) or engine runner that
-can talk to Stockfish.
-
-The default backend is **Matilda**: frozen [Maia-3](https://github.com/CSSLab/maia3)
+can talk to Stockfish. The default backend architecture is a frozen [Maia-3](https://github.com/CSSLab/maia3)
 (23M) re-ranked by the paper's trained set-transformer, with optional engine
-features from any plugged-in search controller (Stockfish, Lc0, or your own).
-The legacy [Maia-2](https://github.com/CSSLab/maia2) backend remains available
-via `--backend maia2`.
+features from any plugged-in search controller (Stockfish, Lc0, or your own). By 
+default we use Stockfish, but we encourage developers to make the engine search build 
+off of Maia's attention layers to focus on more human-like engine searches and not always 
+do max depth searches.
+
+<sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
+[CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
+
 
 ## Install & run
 
@@ -37,6 +59,7 @@ To use it from a chess GUI, point the "add engine" dialog at the
 `matilda-uci` executable — walkthroughs for CuteChess, cutechess-cli, and
 En Croissant are in [docs/gui-demo.md](docs/gui-demo.md).
 
+
 ## CLI flags
 
 | Flag | Default | Meaning |
@@ -56,12 +79,12 @@ Matilda-backend flags:
 | `--checkpoint` | `checkpoints/base_3k.pt` | The trained re-ranker weights |
 | `--tc-base` / `--tc-inc` | 180 / 0 | Time control fed to the model (blitz default) |
 | `--no-auto-tc` | off | Don't latch the real TC from the first `go` clocks |
-| `--style-checkpoint` | — | Optional style-token overlay (personalization) |
-| `--style-posthoc` | — | Optional post-hoc new-player embeddings |
-| `--style-player-id` | -1 | Player row to imitate (-1 = style-free) |
+| `--style-checkpoint` | — | Style transformation weights (pairs with `--style-vector`) |
+| `--style-vector` | — | A 32-d player embedding to imitate (`demos/fit_style_vector.py`) |
 | `--engine-cmd` | — | Search controller, e.g. `stockfish` or `lc0 --weights=...` |
-| `--engine-depth` / `--engine-nodes` | 12 / 0 | Controller search budget (nodes>0 = node limit) |
-| `--maia3-model` | `23m` | Maia-3 variant |
+| `--engine-depth` / `--engine-nodes` / `--engine-movetime` | 12 / 0 / 0 | Controller search budget |
+| `--threads` / `--cache-size` | 0 / 4096 | torch threads; prediction-cache entries |
+| `--maia3-model` | `23m` | Maia-3 variant (non-23m warns: untrained-against) |
 
 Legacy maia2-backend flag: `--maia-type` (`rapid`/`blitz`) — only valid with
 `--backend maia2`.
@@ -70,8 +93,9 @@ Legacy maia2-backend flag: `--maia-type` (`rapid`/`blitz`) — only valid with
 
 Set from any GUI's engine-options dialog: `UCI_LimitStrength`, `UCI_Elo`
 (1000–3200), `OpponentElo`, `TimeControlBase`/`TimeControlInc`/`AutoLatchTC`,
-`Temperature`, `Checkpoint`, `StyleCheckpoint`/`StylePosthoc`/`StylePlayerId`,
-`EngineCmd`/`EngineDepth`/`EngineNodes`, and `Device`.
+`Temperature`, `Checkpoint`, `StyleCheckpoint`/`StyleVector`,
+`EngineCmd`/`EngineDepth`/`EngineNodes`/`EngineMovetime`, `Device`,
+`Threads`, and `CacheSize`.
 
 The model is rating-conditioned, so `UCI_Elo` maps directly onto playing style
 and strength: the engine plays like a human of that rating, including
@@ -98,32 +122,23 @@ to 16 candidate moves plugs in, and without one the model degrades gracefully
 to the pure human prior. `go infinite` runs on a worker thread and holds
 `bestmove` until `stop`, per the UCI spec.
 
-## Botvinnik's programme, inverted
+## Real games on lichess: Matilda at full strength vs the AI levels
 
-<img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
+Played **live on lichess.org** against the real server-side AI (via the Board
+API — `demos/play_on_lichess.py`): Matilda at Elo 3200 with the Stockfish
+search controller, 5+2 clock, one game each color per level.
 
-Long before brute-force search won, world champion **Mikhail Botvinnik**
-argued that a chess program should work the way a master does: don't examine
-every move — build a small *candidate set* the way a human would, and spend
-your calculation only there. He devoted his post-championship career (the
-PIONEER project; *Computers, Chess and Long-Range Planning*, 1970) to
-formalizing that selective, human-feature-focused search. Hardware went the
-other way, and Botvinnik's programme was shelved.
+| Opponent | Games | Score |
+|---|---|---|
+| lichess level 6 | [win as White, mate](https://lichess.org/UZStPZRC) · [win as Black, mate](https://lichess.org/qzQLv7mU) | **2 – 0** |
+| lichess level 7 | [win as White, mate](https://lichess.org/FzmvD0kZ) · [win as Black, mate](https://lichess.org/DZNi54vz) | **2 – 0** |
+| lichess level 8 | [draw as White](https://lichess.org/yrGCakOj) · [draw as Black](https://lichess.org/5Zq9shsE) | **1 – 1** |
 
-Matilda's architecture is that idea, made practical by learning the human
-part instead of hand-coding it. A frozen human-move model (Maia-3) proposes
-the up-to-16 moves a human would actually consider in the position — the
-candidate set Botvinnik wanted — and the **pluggable search controller**
-decides how to spend engine effort across *only those moves*. Stockfish and
-Lc0 plug in today; the `SearchController` API (see
-[developer.md](developer.md)) exists precisely so anyone can implement their
-own allocation policy — deeper on the moves that look most interesting for a
-human, shallower elsewhere. The re-ranker then blends what the engine found
-back into the human distribution. It should "just work" with any controller:
-that composability, not any single engine, is the point.
-
-<sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
-[CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
+5/6 against the machine spectrum, all decided over the board (mates and a
+193-ply stalemate grind) — checkmating levels 6–7 outright and holding
+level 8, essentially full-strength Stockfish, to two draws. For local
+engine-vs-engine testing without a lichess account, `demos/play_vs_stockfish.py`
+reproduces the same opponents offline; sample PGNs in [demos/games/](demos/games/).
 
 ## Demos, docs, numbers
 
@@ -165,5 +180,16 @@ If you use Matilda in your research, please cite:
   author = {Carlson, Jason},
   year   = {2026},
   note   = {Preprint},
+}
+```
+
+To cite this UCI engine / its documentation specifically:
+
+```bibtex
+@software{matilda_uci_2026,
+  title   = {matilda-uci: a human-like UCI chess engine},
+  author  = {Carlson, Jason and Hartfield, Justin},
+  year    = {2026},
+  url     = {https://github.com/GarryChess/matilda-uci},
 }
 ```
