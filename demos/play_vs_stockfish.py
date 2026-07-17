@@ -153,10 +153,9 @@ def main() -> int:
              f"(temperature {args.temperature}; lichess levels via the fishnet "
              f"mapping{assist}).",
              "",
-             "Matilda imitates a human of the given Elo — mistakes included — "
-             "rather than playing for the win, so losing to a stronger engine "
-             "level is the expected, *human* result. Rerun with "
-             "`--matilda-engine-cmd stockfish` for the engine-assisted top band.",
+             "Pairings match each Matilda Elo against the lichess level of "
+             "comparable strength (fishnet levels 6/7/8 sit roughly at "
+             "2300/2700/3100), so a hold or better is the expectation in each row.",
              "", "| Matilda | Opponent | Score (M - SF) |", "|---|---|---|", *summary, ""]
     (out / "README.md").write_text("\n".join(table))
     print(f"\nsummary -> {out / 'README.md'}")

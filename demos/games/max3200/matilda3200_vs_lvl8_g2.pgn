@@ -1,9 +1,0 @@
-[Event "Matilda demo: Elo 3200 vs lichess level 8"]
-[Site "local"]
-[Date "2026.07.15"]
-[Round "2"]
-[White "Stockfish lvl8"]
-[Black "Matilda (Elo 3200)"]
-[Result "1-0"]
-
-1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 O-O 8. c3 d5 9. exd5 Nxd5 10. Nxe5 Nxe5 11. Rxe5 c6 12. Re1 Bd6 13. d3 Bf5 14. Qf3 Qh4 15. g3 Qh3 16. Be3 Bxd3 17. Nd2 Bf5 18. Bd4 Rad8 19. Ne4 Bg4 20. Qg2 Qxg2+ 21. Kxg2 Be7 22. Bc5 Rfe8 23. Bxe7 Nxe7 24. a4 Nd5 25. Nc5 Nc7 26. Rxe8+ Rxe8 27. h3 Bf5 28. Rd1 Kf8 29. Rd6 Re2 30. Rxc6 bxa4 31. Bxf7 Nb5 32. Bd5 Rxb2 33. Nxa4 Rd2 34. c4 Rxd5 35. cxd5 Be4+ 36. Kf1 Bxd5 37. Rxa6 Nd4 38. Rd6 Bc4+ 39. Kg2 Nf5 40. Rb6 Bd5+ 41. Kg1 Nd4 42. f4 Nf3+ 43. Kf2 Nd4 44. Rd6 Bb3 45. Rxd4 Bxa4 46. Rxa4 Ke7 47. Kf3 Kd6 48. Ke4 Kc5 49. Ra7 Kb6 50. Rxg7 Kc6 51. Rxh7 Kc5 52. Rh6 Kc4 53. Rc6+ Kb5 54. Kd5 Kb4 55. f5 Kb5 56. f6 Kb4 57. f7 Kb5 58. f8=Q Ka4 59. Kc4 Ka5 60. Qa8# 1-0

@@ -6,7 +6,7 @@ limited — the script paces itself). Each import creates a permanent
 lichess game page with an interactive board, ideal for linking from the
 README.
 
-    .venv/bin/python demos/import_to_lichess.py demos/games/max3200/*.pgn
+    .venv/bin/python demos/import_to_lichess.py demos/games/matched/*.pgn
 """
 
 from __future__ import annotations
