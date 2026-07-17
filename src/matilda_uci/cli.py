@@ -69,15 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     matilda.add_argument(
         "--style-checkpoint", default="",
-        help="Optional style-token overlay (e.g. checkpoints/style_token_3k.pt).",
+        help="The style transformation weights (e.g. checkpoints/style_token_3k.pt); "
+             "pairs with --style-vector.",
     )
     matilda.add_argument(
-        "--style-posthoc", default="",
-        help="Optional post-hoc new-player embeddings (posthoc_lostyle_3k*.pt).",
-    )
-    matilda.add_argument(
-        "--style-player-id", type=int, default=-1,
-        help="Player row to imitate (-1 = style-free; 0 = generic player).",
+        "--style-vector", default="",
+        help="A 32-d player embedding (.pt) to imitate — fit one from a PGN "
+             "with demos/fit_style_vector.py. Requires --style-checkpoint.",
     )
     matilda.add_argument(
         "--engine-cmd", default="",
@@ -133,9 +131,14 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
                 "--checkpoint /path/to/base_3k.pt (see README for where to get it)"
             )
         for flag, path in (("--style-checkpoint", args.style_checkpoint),
-                           ("--style-posthoc", args.style_posthoc)):
+                           ("--style-vector", args.style_vector)):
             if path and not Path(path).is_file():
                 parser.error(f"{flag} file not found: {path!r}")
+        if args.style_vector and not args.style_checkpoint:
+            parser.error(
+                "--style-vector needs --style-checkpoint (the style "
+                "transformation weights the vector is applied through)"
+            )
         if args.maia3_model != "23m":
             print(
                 f"warning: --maia3-model {args.maia3_model!r}: every shipped "
@@ -183,8 +186,7 @@ def build_policy(args: argparse.Namespace):
         auto_latch_tc=not args.no_auto_tc,
         temperature=args.temperature,
         style_checkpoint=args.style_checkpoint,
-        style_posthoc=args.style_posthoc,
-        style_player_id=args.style_player_id,
+        style_vector=args.style_vector,
         engine_cmd=args.engine_cmd,
         engine_depth=args.engine_depth,
         engine_nodes=args.engine_nodes,

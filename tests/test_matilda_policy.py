@@ -41,9 +41,9 @@ class FakeModel:
                  for i, u in enumerate(legal)}
         return FakePrediction(probs)
 
-    def load_style(self, style, posthoc=None):
-        self.style_loads.append((style, posthoc))
-        return 7000
+    def load_style_vector(self, style, vector):
+        self.style_loads.append((style, vector))
+        return 1
 
     def close(self):
         self.closed = True
@@ -144,14 +144,18 @@ def test_elo_options_and_limit_strength() -> None:
     assert model.calls[-1]["elo_self"] == policy.elo_max
 
 
-def test_style_loaded_once_and_pid_passed() -> None:
-    policy, model = make_policy(style_checkpoint="style.pt", style_player_id=42)
+def test_style_vector_loaded_once_and_pid_passed() -> None:
+    policy, model = make_policy(style_checkpoint="style.pt", style_vector="tal.pt")
     policy.select(chess.Board())
     policy.select(chess.Board())
-    assert model.style_loads == [("style.pt", None)]
-    assert model.calls[-1]["pid"] == 42
-    policy.set_option("StylePlayerId", "-1")
+    assert model.style_loads == [("style.pt", "tal.pt")]
+    assert model.calls[-1]["pid"] == 1  # the loaded vector's row
+
+
+def test_style_checkpoint_without_vector_plays_style_free() -> None:
+    policy, model = make_policy(style_checkpoint="style.pt")
     policy.select(chess.Board())
+    assert model.style_loads == []  # nothing to load without a vector
     assert model.calls[-1]["pid"] is None
 
 
@@ -169,8 +173,9 @@ def test_option_declarations_include_matilda_specific() -> None:
     policy, _ = make_policy()
     names = {o.name for o in policy.uci_options()}
     assert {"UCI_Elo", "OpponentElo", "TimeControlBase", "TimeControlInc",
-            "AutoLatchTC", "Checkpoint", "StyleCheckpoint", "StylePlayerId",
-            "EngineCmd", "EngineDepth", "EngineNodes"} <= names
+            "AutoLatchTC", "Checkpoint", "StyleCheckpoint", "StyleVector",
+            "EngineCmd", "EngineDepth", "EngineNodes", "EngineMovetime",
+            "Threads", "CacheSize"} <= names
 
 
 def test_empty_placeholder_option_value() -> None:

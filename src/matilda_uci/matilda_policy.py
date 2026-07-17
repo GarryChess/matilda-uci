@@ -80,8 +80,7 @@ class MatildaPolicy:
         elo_min: int = 1000,
         elo_max: int = 3200,
         style_checkpoint: str = "",
-        style_posthoc: str = "",
-        style_player_id: int = -1,
+        style_vector: str = "",
         engine_cmd: str = "",
         engine_depth: int = 12,
         engine_nodes: int = 0,
@@ -106,8 +105,8 @@ class MatildaPolicy:
         self.elo_min = int(elo_min)
         self.elo_max = int(elo_max)
         self.style_checkpoint = style_checkpoint
-        self.style_posthoc = style_posthoc
-        self.style_player_id = int(style_player_id)
+        self.style_vector = style_vector
+        self._style_pid: int | None = None
         self.engine_cmd = engine_cmd
         self.engine_depth = int(engine_depth)
         self.engine_nodes = int(engine_nodes)
@@ -135,7 +134,7 @@ class MatildaPolicy:
             tc_base=self.tc_base,
             tc_inc=self.tc_inc,
             controller=self._ensure_controller(),
-            pid=self.style_player_id if self.style_player_id >= 0 else None,
+            pid=self._style_pid,
         )
         if pred is None:
             return PolicyResult(best_uci=None)
@@ -187,9 +186,7 @@ class MatildaPolicy:
             UciOption("Temperature", "string", default=f"{self.temperature:.2f}"),
             UciOption("Checkpoint", "string", default=self.checkpoint),
             UciOption("StyleCheckpoint", "string", default=self.style_checkpoint or "<empty>"),
-            UciOption("StylePosthoc", "string", default=self.style_posthoc or "<empty>"),
-            UciOption("StylePlayerId", "spin", default=str(self.style_player_id),
-                      min=-1, max=1_000_000),
+            UciOption("StyleVector", "string", default=self.style_vector or "<empty>"),
             UciOption("EngineCmd", "string", default=self.engine_cmd or "<empty>"),
             UciOption("EngineDepth", "spin", default=str(self.engine_depth), min=1, max=40),
             UciOption("EngineNodes", "spin", default=str(self.engine_nodes),
@@ -232,11 +229,9 @@ class MatildaPolicy:
         elif key == "stylecheckpoint" and value != self.style_checkpoint:
             self.style_checkpoint = value
             self._reset_model()
-        elif key == "styleposthoc" and value != self.style_posthoc:
-            self.style_posthoc = value
+        elif key == "stylevector" and value != self.style_vector:
+            self.style_vector = value
             self._reset_model()
-        elif key == "styleplayerid":
-            self.style_player_id = _safe_int(value, self.style_player_id)
         elif key == "enginecmd" and value != self.engine_cmd:
             self.engine_cmd = value
             self._reset_controller()
@@ -303,11 +298,21 @@ class MatildaPolicy:
             factory = self._model_factory or self._build_model
             self._model = factory()
             self._style_applied = False
-        if self.style_checkpoint and not self._style_applied:
-            load_style = getattr(self._model, "load_style", None)
-            if callable(load_style):
-                rows = load_style(self.style_checkpoint, self.style_posthoc or None)
-                logger.info("style overlay loaded: %d player rows", rows)
+            self._style_pid = None
+        if self.style_checkpoint and self.style_vector and not self._style_applied:
+            load_vec = getattr(self._model, "load_style_vector", None)
+            if callable(load_vec):
+                self._style_pid = load_vec(self.style_checkpoint, self.style_vector)
+                logger.info(
+                    "style vector %s loaded (transformation: %s)",
+                    self.style_vector, self.style_checkpoint,
+                )
+            self._style_applied = True
+        elif self.style_checkpoint and not self.style_vector and not self._style_applied:
+            logger.warning(
+                "StyleCheckpoint set without StyleVector; playing style-free "
+                "(supply a 32-d embedding file — see demos/fit_style_vector.py)"
+            )
             self._style_applied = True
         return self._model
 

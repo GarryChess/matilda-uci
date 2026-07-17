@@ -164,7 +164,49 @@ class MatildaModel:
         self._model = model
         self._style_loaded = True
         self._n_style_rows = rows
+        self._cache.clear()  # the style changes every distribution
         return rows
+
+    def load_style_vector(self, style_checkpoint: str, vector: object) -> int:
+        """Personalize with a user-supplied 32-d embedding — the public path.
+
+        Three files make a personalized Matilda: the base model (this object's
+        ``checkpoint``), the style *transformation* (``style_checkpoint`` — the
+        trained projection that turns an embedding into a context nudge), and
+        the player's own 32-d embedding, supplied here as a tensor or a path to
+        a ``.pt`` file holding one (see ``demos/fit_style_vector.py`` to fit one
+        from a PGN). Returns the pid to pass to :meth:`predict` (always 1;
+        row 0 keeps the trained generic-player fallback).
+        """
+        self._ensure_model()  # populates _base_sd
+        assert self._base_sd is not None
+        tok = torch.load(style_checkpoint, map_location="cpu")
+        sdim = int(tok["sdim"])
+        if isinstance(vector, (str, bytes)):
+            loaded = torch.load(vector, map_location="cpu")
+            if isinstance(loaded, dict):  # accept {"vector": ...} wrappers
+                loaded = loaded.get("vector", loaded.get("spe_new"))
+            vector = loaded
+        vec = torch.as_tensor(vector, dtype=torch.float32).reshape(-1)
+        if vec.numel() != sdim:
+            raise ValueError(
+                f"style vector has {vec.numel()} dims; this style transformation "
+                f"expects {sdim}"
+            )
+
+        model = TXTC(sdim=sdim, n_players=1)  # row 0 generic, row 1 the player
+        model.load_state_dict(self._base_sd, strict=False)
+        spp_only = {k: v for k, v in tok["state_dict"].items() if not k.startswith("spe")}
+        model.load_state_dict(spp_only, strict=False)
+        with torch.no_grad():
+            model.spe.weight[0] = tok["state_dict"]["spe.weight"][0]
+            model.spe.weight[1] = vec
+        model.to(self.device).eval()
+        self._model = model
+        self._style_loaded = True
+        self._n_style_rows = 2
+        self._cache.clear()  # the style changes every distribution
+        return 1
 
     @property
     def style_rows(self) -> int:

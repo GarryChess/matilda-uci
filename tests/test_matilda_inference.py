@@ -168,6 +168,29 @@ def test_style_overlay_and_posthoc_rows(zero_ckpt, tmp_path) -> None:
     assert abs(sum(pred.move_probs.values()) - 1.0) < 1e-6
 
 
+def test_load_style_vector_three_file_flow(zero_ckpt, tmp_path) -> None:
+    """The public personalization path: base + transformation + user vector."""
+    style = generate_style(_Args(seed=1, n_players=10, base=zero_ckpt))
+    style_path = tmp_path / "style.pt"
+    torch.save(style, style_path)
+    vec = torch.randn(32)
+    vec_path = tmp_path / "player.pt"
+    torch.save(vec, vec_path)
+
+    model, _ = make_model(zero_ckpt)
+    pid = model.load_style_vector(str(style_path), str(vec_path))
+    assert pid == 1
+    assert torch.equal(model._model.spe.weight[1], vec)
+    pred = model.predict(chess.Board(), pid=pid)
+    assert abs(sum(pred.move_probs.values()) - 1.0) < 1e-6
+
+    # wrong dimensionality fails loudly
+    bad = tmp_path / "bad.pt"
+    torch.save(torch.randn(16), bad)
+    with pytest.raises(ValueError, match="16 dims"):
+        model.load_style_vector(str(style_path), str(bad))
+
+
 def test_pid_without_style_overlay_is_ignored(zero_ckpt) -> None:
     model, _ = make_model(zero_ckpt)
     pred = model.predict(chess.Board(), pid=3)

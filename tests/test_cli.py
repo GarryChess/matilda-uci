@@ -45,6 +45,15 @@ def test_missing_style_checkpoint_is_rejected(tmp_path) -> None:
         )
 
 
+def test_style_vector_requires_style_checkpoint(tmp_path) -> None:
+    ckpt = tmp_path / "base.pt"
+    vec = tmp_path / "vec.pt"
+    ckpt.write_bytes(b"x")
+    vec.write_bytes(b"x")
+    with pytest.raises(SystemExit):
+        _validate(["--checkpoint", str(ckpt), "--style-vector", str(vec)])
+
+
 def test_maia2_backend_accepts_maia_type_and_gpu() -> None:
     _validate(["--backend", "maia2", "--maia-type", "blitz", "--device", "gpu"])
 
