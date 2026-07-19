@@ -7,9 +7,10 @@ build/
 .pytest_cache/
 .ruff_cache/
 
-# Model weights: never vendored in git. base_3k.pt (deploy) + style_token_3k.pt
-# live here locally; distribution downloads them at first run (see README).
-checkpoints/
+# The released re-ranker checkpoints are vendored via git-lfs (see
+# .gitattributes); pip installs fetch the same files from the GitHub release
+# on first run instead. The big weights (Maia-3 23M) are NOT in git —
+# they auto-download from HuggingFace.
 
 # Bulk simulation outputs (100-game runs etc.): analysis data, not source.
 # The curated 6-game demo set in demos/games/ stays tracked.

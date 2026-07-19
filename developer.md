@@ -166,12 +166,26 @@ paid on first prediction. Inject `wrapper=` (any object with the
 `Maia3Wrapper.infer` signature) to fake Maia-3 in tests — the whole test
 suite runs without model runtimes this way.
 
-Runtime requirements: `torch`, `numpy`, `python-chess`, plus the pinned
-Maia-3 package:
+Runtime requirements: `torch`, `numpy`, `python-chess`, and `maia3-runtime`
+(the paper's pinned CSSLab/maia3 revision on PyPI) — all pulled in by
+`pip install matilda-uci`.
+
+Weights: the re-ranker checkpoints resolve through
+`matilda_uci.assets.resolve_checkpoint` — an existing path is used as-is; a
+released name (`base_3k.pt`, `style_token_3k.pt`, `maia3_zero.pt`) is found
+in a checkout's `checkpoints/` (git-lfs) or downloaded once, sha256-verified,
+into `~/.cache/matilda-uci` (override with `$MATILDA_UCI_CACHE`). Maia-3 23M
+(~88 MB) auto-downloads to `HF_HOME` on first use.
+
+## Releases
+
+Releases publish to PyPI via trusted publishing (no tokens in the repo):
+bump `version` in `pyproject.toml`, merge to `main`, then tag it —
 
 ```
-pip install 'maia3 @ git+https://github.com/CSSLab/maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2'
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-Weights: `base_3k.pt` (~6.4 MB, the re-ranker) local; Maia-3 23M (~88 MB)
-auto-downloads to `HF_HOME` on first use.
+`release.yml` runs the tests, builds sdist+wheel, checks the tag against the
+pyproject version, and publishes as the registered trusted publisher for
+`matilda-uci`. v0.1.0 is live (`pip install matilda-uci`).
