@@ -1,0 +1,9 @@
+[Event "Matilda demo: Elo 2000 vs lichess level 7"]
+[Site "local"]
+[Date "2026.07.19"]
+[Round "1"]
+[White "Matilda (Elo 2000)"]
+[Black "Stockfish lvl7"]
+[Result "0-1"]
+
+1. e4 e6 2. d4 d5 3. exd5 exd5 4. Nf3 Bd6 5. Bd3 Nc6 6. c3 h6 7. O-O Nge7 8. Re1 O-O 9. Nbd2 Bf5 10. Nf1 Qd7 11. Ng3 Bxg3 12. hxg3 Rfe8 13. Bf4 Bxd3 14. Qxd3 a6 15. Re2 f6 16. Rae1 Kh8 17. Nh4 g5 18. Ng6+ Kg7 19. Nxe7 Nxe7 20. Bd2 c6 21. Re6 Ng6 22. Qf5 Rxe6 23. Rxe6 Rf8 24. f4 Ne7 25. Qh3 Ng8 26. fxg5 hxg5 27. Qf5 Re8 28. Re5 Qxf5 29. Rxf5 Nh6 30. Rf2 Ng4 31. Rf1 Re2 32. Bc1 b6 33. a3 b5 34. Rd1 Rc2 35. Kf1 Kg6 36. Re1 Nh6 37. Kg1 Kh5 38. Kh2 Kg4 39. Rf1 Nf5 40. Re1 Nxg3 41. Re6 Rxc1 42. Rxf6 Ra1 43. Rxc6 a5 44. Rc5 Rh1# 0-1

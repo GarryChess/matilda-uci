@@ -86,6 +86,9 @@ def main() -> int:
     ap.add_argument("--temperature", type=float, default=0.3,
                     help="sampling temperature so repeat games vary")
     ap.add_argument("--sf-movetime", type=float, default=0.5)
+    ap.add_argument("--matilda-movetime", type=float, default=3.0,
+                    help="per-move seconds handed to Matilda (go movetime; its "
+                         "TC budget takes the min with this)")
     ap.add_argument("--matilda-engine-cmd", default="",
                     help="Matilda's search controller (default: the engine's own "
                          "auto-resolved stockfish)")
@@ -116,7 +119,7 @@ def main() -> int:
                                  args.matilda_name, args.matilda_no_engine)
         sf, depth = stockfish_engine(args.stockfish, level)
         sf_limit = chess.engine.Limit(depth=depth, time=args.sf_movetime)
-        m_limit = chess.engine.Limit(time=10.0)
+        m_limit = chess.engine.Limit(time=args.matilda_movetime)
         score = {"matilda": 0.0, "stockfish": 0.0}
         unfinished = 0
         try:

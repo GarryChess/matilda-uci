@@ -1,9 +1,0 @@
-[Event "Matilda demo: Elo 2300 vs lichess level 6"]
-[Site "local"]
-[Date "2026.07.17"]
-[Round "2"]
-[White "Stockfish lvl6"]
-[Black "Matilda (Elo 2300)"]
-[Result "1/2-1/2"]
-
-1. d4 Nf6 2. Nf3 e6 3. c4 d5 4. Nc3 Be7 5. Bf4 O-O 6. e3 b6 7. cxd5 Nxd5 8. Bd3 Nxf4 9. exf4 Bb7 10. O-O Nd7 11. Ne5 Nf6 12. Bb5 c5 13. Nc6 Bxc6 14. Bxc6 Rc8 15. Bb5 cxd4 16. Ne2 Rc5 17. a4 Rd5 18. Nc1 Qd6 19. Bc4 Rc5 20. Bb5 Qxf4 21. Nd3 Qg5 22. Nxc5 bxc5 23. Qf3 Nd5 24. Rfe1 Bd6 25. Bc4 Nb4 26. Rad1 Qh6 27. g3 Qf6 28. Qxf6 gxf6 29. Rc1 f5 30. f4 Kg7 31. Kg2 Kf6 32. Kf3 Rb8 33. h3 Nc6 34. b3 Na5 35. Rb1 Rb4 36. g4 Nxc4 37. bxc4 Rxc4 38. Rec1 Rxa4 39. gxf5 Kxf5 40. Rb3 c4 41. Rb5+ Kf6 42. Ke4 d3 43. Rd1 c3+ 44. Kxd3 Bxf4 45. Kxc3 Ra3+ 46. Rb3 Be5+ 47. Kc2 Ra2+ 48. Kc1 Ra1+ 49. Rb1 Ra3 50. Rb7 Rxh3 51. Rf1+ Kg6 52. Rbxf7 a5 53. Kc2 a4 54. R7f2 a3 55. Re2 Rh5 56. Kb3 Rh3+ 57. Ka2 Rh5 58. Rfe1 Kf6 59. Kxa3 Rf5 60. Kb3 h5 61. Kc2 h4 62. Re3 Rf2+ 63. Kb3 Rf5 64. Kc4 Rf4+ 65. Kb3 Rf5 66. Kc2 Rf2+ 67. Kd1 Rf5 68. R1e2 Rf1+ 69. Re1 Rxe1+ 70. Kxe1 Kf5 71. Re2 Bg3+ 72. Kf1 e5 73. Kg2 e4 74. Re3 Kf4 75. Rc3 e3 76. Rc4+ Ke5 77. Kf3 Bf2 78. Rc6 Kd4 79. Ra6 Kd3 80. Rg6 Kd2 81. Re6 h3 82. Ra6 h2 83. Kg2 Bg1 84. Ra2+ Kd3 85. Kh1 e2 86. Ra1 Kd2 87. Rb1 e1=Q 88. Rxe1 Kxe1 89. Kg2 Ke2 90. Kh1 Ke3 91. Kg2 Kf4 92. Kh1 Kg4 93. Kg2 Kh4 94. Kh1 Kh3 1/2-1/2

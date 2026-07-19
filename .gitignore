@@ -15,3 +15,6 @@ build/
 # Bulk simulation outputs (100-game runs etc.): analysis data, not source.
 # The curated 6-game demo set in demos/games/ stays tracked.
 demos/games/*_sims/
+
+# Local task notes, not part of the repo.
+currentTask.*
