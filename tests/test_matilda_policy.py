@@ -51,6 +51,9 @@ class FakeModel:
 
 def make_policy(**kwargs) -> tuple[MatildaPolicy, FakeModel]:
     model = FakeModel()
+    # No engine by default: tests must not depend on (or spawn) a real
+    # stockfish; engine-required behaviour is tested explicitly.
+    kwargs.setdefault("engine_cmd", None)
     policy = MatildaPolicy(model=model, **kwargs)
     return policy, model
 
@@ -217,6 +220,67 @@ def test_engine_movetime_option_milliseconds() -> None:
     assert policy.engine_movetime == 1.5
     policy.set_option("EngineMovetime", "0")
     assert policy.engine_movetime == 0.0
+
+
+def test_explicit_no_engine_means_no_controller() -> None:
+    policy, _ = make_policy()  # engine_cmd=None via the helper
+    assert policy.engine_cmd == ""
+    assert policy._ensure_controller() is None
+
+
+def test_engine_auto_resolves_or_raises(monkeypatch) -> None:
+    import matilda_uci.matilda_policy as mp
+
+    monkeypatch.setattr(mp.shutil, "which", lambda name: "/fake/bin/stockfish")
+    policy, _ = make_policy(engine_cmd="auto")
+    assert policy.engine_cmd == "/fake/bin/stockfish"
+
+    monkeypatch.setattr(mp.shutil, "which", lambda name: None)
+    import pytest
+
+    with pytest.raises(FileNotFoundError):
+        make_policy(engine_cmd="auto")
+
+
+def test_engine_budget_from_tc_clock_and_options() -> None:
+    policy, _ = make_policy(engine_cmd="stockfish", tc_base=300, tc_inc=2)
+    board = chess.Board()
+    # 300+2 is blitz: cap 15s, but only remaining/30 of the clock may be spent.
+    policy.observe_go(
+        {"wtime": 300_000, "btime": 300_000, "winc": 2000, "binc": 2000}, board
+    )
+    assert abs(policy._engine_budget() - 10.0) < 1e-9  # min(15, 300/30)
+    # low on the clock: the guard shrinks the budget
+    board.push_uci("e2e4")
+    board.push_uci("e7e5")
+    policy.observe_go({"wtime": 30_000, "btime": 200_000, "winc": 2000}, board)
+    assert abs(policy._engine_budget() - 1.0) < 1e-9  # 30/30
+    # an explicit EngineMovetime takes the min with the TC cap
+    policy.new_game()
+    policy.set_option("EngineMovetime", "500")
+    assert abs(policy._engine_budget() - 0.5) < 1e-9
+    policy.set_option("EngineMovetime", "60000")
+    assert abs(policy._engine_budget() - 15.0) < 1e-9  # blitz cap wins the min
+
+
+def test_engine_budget_by_speed_and_gui_movetime() -> None:
+    policy, _ = make_policy(engine_cmd="stockfish", tc_base=60, tc_inc=0)
+    assert abs(policy._engine_budget() - 2.0) < 1e-9  # bullet
+    policy2, _ = make_policy(engine_cmd="stockfish", tc_base=900, tc_inc=10)
+    assert abs(policy2._engine_budget() - 30.0) < 1e-9  # rapid
+    # go movetime from the GUI caps the search as well
+    policy2.observe_go({"movetime": 500}, chess.Board())
+    assert abs(policy2._engine_budget() - 0.5) < 1e-9
+    policy2.new_game()
+    assert abs(policy2._engine_budget() - 30.0) < 1e-9
+
+
+def test_fresh_seed_when_unset_reproducible_when_set() -> None:
+    a, _ = make_policy()
+    b, _ = make_policy()
+    assert a.seed != b.seed  # fresh entropy each construction
+    c, _ = make_policy(seed=7)
+    assert c.seed == 7
 
 
 # --- engine go-parsing integration -----------------------------------------------

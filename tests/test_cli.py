@@ -58,16 +58,58 @@ def test_maia2_backend_accepts_maia_type_and_gpu() -> None:
     _validate(["--backend", "maia2", "--maia-type", "blitz", "--device", "gpu"])
 
 
+def _fake_runtime(monkeypatch, *, stockfish: str | None) -> None:
+    """Pretend the maia3 package is importable and stockfish is (or isn't)
+    on PATH, so validation success paths don't need either installed (CI)."""
+    import matilda_uci.cli as cli
+
+    monkeypatch.setattr(cli.shutil, "which", lambda name: stockfish)
+    monkeypatch.setattr(cli.importlib.util, "find_spec", lambda name: object())
+
+
+def test_engine_required_by_default(monkeypatch, tmp_path) -> None:
+    ckpt = tmp_path / "base.pt"
+    ckpt.write_bytes(b"x")
+    _fake_runtime(monkeypatch, stockfish=None)
+    with pytest.raises(SystemExit):
+        _validate(["--checkpoint", str(ckpt)])  # no stockfish -> startup error
+    _validate(["--checkpoint", str(ckpt), "--no-engine"])  # explicit opt-out
+    _fake_runtime(monkeypatch, stockfish="/fake/bin/stockfish")
+    _validate(["--checkpoint", str(ckpt)])  # auto-resolution succeeds
+
+
+def test_no_engine_conflicts_with_engine_cmd(monkeypatch, tmp_path) -> None:
+    ckpt = tmp_path / "base.pt"
+    ckpt.write_bytes(b"x")
+    _fake_runtime(monkeypatch, stockfish="/fake/bin/stockfish")
+    with pytest.raises(SystemExit):
+        _validate(["--checkpoint", str(ckpt), "--no-engine",
+                   "--engine-cmd", "stockfish"])
+
+
+def test_explicit_engine_cmd_must_exist(monkeypatch, tmp_path) -> None:
+    ckpt = tmp_path / "base.pt"
+    ckpt.write_bytes(b"x")
+    _fake_runtime(monkeypatch, stockfish=None)
+    with pytest.raises(SystemExit):
+        _validate(["--checkpoint", str(ckpt), "--engine-cmd", "no-such-engine"])
+    _fake_runtime(monkeypatch, stockfish="/fake/bin/lc0")
+    _validate(["--checkpoint", str(ckpt), "--engine-cmd", "lc0 --weights=w.pb"])
+
+
 def test_opp_elo_defaults_to_elo(tmp_path) -> None:
     from matilda_uci.cli import build_policy
 
     ckpt = tmp_path / "base.pt"
     ckpt.write_bytes(b"x")
     parser = build_parser()
-    args = parser.parse_args(["--elo", "2400", "--checkpoint", str(ckpt)])
+    args = parser.parse_args(
+        ["--elo", "2400", "--checkpoint", str(ckpt), "--no-engine"]
+    )
     policy = build_policy(args)
     assert policy.elo_oppo == 2400  # follows --elo when not given
     args = parser.parse_args(
-        ["--elo", "2400", "--opp-elo", "1800", "--checkpoint", str(ckpt)]
+        ["--elo", "2400", "--opp-elo", "1800", "--checkpoint", str(ckpt),
+         "--no-engine"]
     )
     assert build_policy(args).elo_oppo == 1800  # explicit value wins

@@ -39,13 +39,22 @@ do max depth searches.
 ## Install & run
 
 ```bash
-pip install -e ".[dev]"    # from a clone (PyPI release TBD)
+pip install matilda-uci        # or, from a clone: pip install -e ".[dev]"
 
 # the matilda backend additionally needs the pinned Maia-3 runtime:
 pip install 'maia3 @ git+https://github.com/CSSLab/maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2'
 
 matilda-uci --elo 1500 --checkpoint checkpoints/base_3k.pt
 ```
+
+Matilda drives a search engine and expects one at startup: by default it
+finds `stockfish` on your PATH ([install
+Stockfish](https://stockfishchess.org/download/); macOS `brew install
+stockfish`, Debian/Ubuntu `apt install stockfish`), `--engine-cmd` points at
+any other UCI engine, and `--no-engine` opts out (raw human prior — much
+weaker at high Elo). The per-move engine time follows the game's time
+control: roughly 2s in bullet, 15s in blitz, 30s in rapid, 60s in classical,
+always bounded by the remaining clock.
 
 Maia-3's 23M weights auto-download from HuggingFace on first use. The
 re-ranker checkpoint (`base_3k.pt`, ~6 MB) is required for the default
@@ -66,8 +75,9 @@ En Croissant are in [docs/gui-demo.md](docs/gui-demo.md).
 |---|---|---|
 | `--backend` | `matilda` | `matilda` (Maia-3 + re-ranker) or `maia2` (legacy) |
 | `--elo` | 1500 | Playing strength (the Elo the engine imitates) |
-| `--opp-elo` | 1500 | The opponent Elo the model conditions on |
+| `--opp-elo` | follows `--elo` | The opponent Elo the model conditions on |
 | `--temperature` | 0.0 | 0 = always the most-human move; higher = sample |
+| `--seed` | fresh each start | Sampling seed; pass a value to reproduce a run |
 | `--device` | `cpu` | matilda: `cpu`/`mps`/`cuda`; maia2: `cpu`/`gpu` |
 | `--name` | `Matilda` | Engine name reported to the GUI |
 | `--log-level` | `WARNING` | Logging goes to stderr (stdout is the UCI channel) |
@@ -81,8 +91,9 @@ Matilda-backend flags:
 | `--no-auto-tc` | off | Don't latch the real TC from the first `go` clocks |
 | `--style-checkpoint` | — | Style transformation weights (pairs with `--style-vector`) |
 | `--style-vector` | — | A 32-d player embedding to imitate (`demos/fit_style_vector.py`) |
-| `--engine-cmd` | — | Search controller, e.g. `stockfish` or `lc0 --weights=...` |
-| `--engine-depth` / `--engine-nodes` / `--engine-movetime` | 12 / 0 / 0 | Controller search budget |
+| `--engine-cmd` | `auto` | Search controller; `auto` = stockfish from PATH, or e.g. `lc0 --weights=...` |
+| `--no-engine` | off | Play from the raw human prior alone (no search engine) |
+| `--engine-depth` / `--engine-nodes` / `--engine-movetime` | 22 / 0 / 0 | Controller search budget; movetime takes the min with the TC-derived cap |
 | `--threads` / `--cache-size` | 0 / 4096 | torch threads; prediction-cache entries |
 | `--maia3-model` | `23m` | Maia-3 variant (non-23m warns: untrained-against) |
 
@@ -101,7 +112,10 @@ The model is rating-conditioned, so `UCI_Elo` maps directly onto playing style
 and strength: the engine plays like a human of that rating, including
 human-characteristic mistakes. Time control is a real model input — the same
 position is played differently at 60+0 than at 900+10 — and is latched
-automatically from the clock at the first `go` of each game.
+automatically from the clock at the first `go` of each game. The same time
+control also sets the search controller's per-move budget (bullet ~2s, blitz
+15s, rapid 30s, classical 60s), bounded by the remaining clock and any
+`EngineMovetime` / `go movetime`.
 
 ## Architecture
 

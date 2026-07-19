@@ -127,7 +127,7 @@ class MaiaPolicy:
         limit_strength: bool = True,
         elo_min: int = 1100,
         elo_max: int = 2000,
-        seed: int = 0,
+        seed: int | None = None,
     ) -> None:
         self.elo_self = int(elo_self)
         self.elo_oppo = int(elo_oppo)
@@ -139,7 +139,11 @@ class MaiaPolicy:
         self.elo_max = int(elo_max)
         self._wrapper = wrapper
         self._wrapper_factory = wrapper_factory
-        self._rng = random.Random(seed)
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**32)
+            logger.info("sampling seed (fresh): %d — pass seed= to reproduce", seed)
+        self.seed = int(seed)
+        self._rng = random.Random(self.seed)
 
     # --- MovePolicy surface ----------------------------------------------------
     def select(self, board: chess.Board) -> PolicyResult:

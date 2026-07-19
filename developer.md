@@ -38,7 +38,7 @@ pred = model.predict(
     tc_base=180, tc_inc=0,   # time control in seconds — a real model input
 )
 print(sorted(pred.move_probs.items(), key=lambda kv: -kv[1])[:5])
-# [('f8c5', 0.327), ('g8f6', 0.302), ('h7h6', 0.145), ...]
+# [('g8f6', 0.384), ('f8c5', 0.289), ('h7h6', 0.120), ...]
 print(pred.win_prob)         # Maia-3 expected score for the side to move
 ```
 
@@ -142,10 +142,18 @@ result = eng.play(chess.Board(), chess.engine.Limit(time=1.0))
 Notes for integrators:
 
 - **stdout is the protocol channel**; all logging goes to stderr.
+- **A search engine is expected at startup**: the default `--engine-cmd auto`
+  resolves `stockfish` from PATH and errors out if missing; pass `--no-engine`
+  (CLI) or `engine_cmd=None` (`MatildaPolicy`) to play from the raw human
+  prior. Per-move engine time follows the game's time control (bullet ~2s,
+  blitz 15s, rapid 30s, classical 60s), bounded by the remaining clock and
+  `EngineMovetime`.
 - Config errors fail at startup with a clean argparse message; anything that
   slips through surfaces as `info string error: ...` before `bestmove 0000`.
 - The engine latches the real time control from the clocks of the first `go`
   of each game (`AutoLatchTC`); send `ucinewgame` between games so it resets.
+- Sampling gets a fresh random seed each start (logged at INFO); pass
+  `--seed`/`seed=` for reproducible runs.
 - Model load happens on the first `go`, not during the handshake — budget a
   few seconds for the first move (Maia-3 downloads from HuggingFace once).
 
