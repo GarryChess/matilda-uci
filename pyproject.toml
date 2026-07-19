@@ -4,23 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "matilda-uci"
-version = "0.1.0"
+version = "0.2.0"
 description = "Matilda: a free human-like UCI chess engine."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 keywords = ["chess", "uci", "engine", "maia", "human-like"]
 # maia2 0.9 does not declare several of its own imports, so torch/numpy are
-# listed explicitly here.
+# listed explicitly here. maia3-runtime is the paper's pinned CSSLab/maia3
+# revision republished on PyPI (AGPL-3.0, credited; PyPI forbids git-URL deps).
 dependencies = [
   "python-chess>=1.999",
   "maia2==0.9",
+  "maia3-runtime==0.1.0",
   "numpy",
   "torch>=2.2",
 ]
 
 [project.urls]
-Homepage = "https://github.com/jcarlson212/matilda-uci"
+Homepage = "https://github.com/GarryChess/matilda-uci"
 
 [project.optional-dependencies]
 dev = [

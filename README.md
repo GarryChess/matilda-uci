@@ -39,13 +39,17 @@ do max depth searches.
 ## Install & run
 
 ```bash
-pip install matilda-uci        # or, from a clone: pip install -e ".[dev]"
-
-# the matilda backend additionally needs the pinned Maia-3 runtime:
-pip install 'maia3 @ git+https://github.com/CSSLab/maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2'
-
-matilda-uci --elo 1500 --checkpoint checkpoints/base_3k.pt
+pip install matilda-uci
+matilda-uci --elo 1500
 ```
+
+That's the whole install: the Maia-3 runtime comes along as the
+`maia3-runtime` dependency (the paper's pinned CSSLab/maia3 revision,
+republished on PyPI), and everything else is fetched on first run —
+the re-ranker checkpoint (`base_3k.pt`, ~6 MB, sha256-verified) from this
+repo's release assets into `~/.cache/matilda-uci`, and Maia-3's 23M weights
+(~88 MB) from HuggingFace. A `git clone` needs no downloads for the
+checkpoints at all — they're in `checkpoints/` via git-lfs (`git lfs pull`).
 
 Matilda drives a search engine and expects one at startup: by default it
 finds `stockfish` on your PATH ([install
@@ -56,11 +60,7 @@ weaker at high Elo). The per-move engine time follows the game's time
 control: roughly 2s in bullet, 15s in blitz, 30s in rapid, 60s in classical,
 always bounded by the remaining clock.
 
-Maia-3's 23M weights auto-download from HuggingFace on first use. The
-re-ranker checkpoint (`base_3k.pt`, ~6 MB) is required for the default
-backend and validated at startup; ask the maintainers or see the paper repo
-for the released weights. The UCI handshake itself is instant — models load
-on the first move request.
+The UCI handshake itself is instant — models load on the first move request.
 
 The legacy backend needs neither: `matilda-uci --backend maia2 --maia-type rapid`.
 
@@ -86,7 +86,7 @@ Matilda-backend flags:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--checkpoint` | `checkpoints/base_3k.pt` | The trained re-ranker weights |
+| `--checkpoint` | `base_3k.pt` (auto-fetched) | The trained re-ranker weights: a path, or a released name |
 | `--tc-base` / `--tc-inc` | 180 / 0 | Time control fed to the model (blitz default) |
 | `--no-auto-tc` | off | Don't latch the real TC from the first `go` clocks |
 | `--style-checkpoint` | — | Style transformation weights (pairs with `--style-vector`) |
@@ -169,6 +169,7 @@ reproduces the same opponents offline; sample PGNs in [demos/games/](demos/games
 ## Development
 
 ```bash
+git lfs install && git lfs pull   # the vendored checkpoints are git-lfs objects
 pip install -e ".[dev]"
 python -m pytest
 python -m ruff check .
