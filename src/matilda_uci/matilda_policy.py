@@ -6,7 +6,7 @@ set-transformer from ``base_3k.pt``) over the UCI protocol. Everything heavy
 module — and the engine handshake — stays instant and torch-free; tests inject
 a fake model.
 
-UCI-protocol impedance matching (see currentTask notes):
+UCI-protocol impedance matching:
 
 * **Move history**: Maia-3 conditions on the trailing 8 positions. UCI gives
   them for free — ``position startpos moves ...`` builds a board whose
