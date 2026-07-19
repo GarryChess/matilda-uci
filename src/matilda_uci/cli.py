@@ -134,15 +134,21 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
                 "--maia-type only applies to the legacy Maia-2 backend; "
                 "add --backend maia2 (the default backend is the Maia-3 based matilda)"
             )
-        if not Path(args.checkpoint).is_file():
-            parser.error(
-                f"re-ranker checkpoint not found: {args.checkpoint!r} — pass "
-                "--checkpoint /path/to/base_3k.pt (see README for where to get it)"
-            )
-        for flag, path in (("--style-checkpoint", args.style_checkpoint),
-                           ("--style-vector", args.style_vector)):
-            if path and not Path(path).is_file():
-                parser.error(f"{flag} file not found: {path!r}")
+        from .assets import resolve_checkpoint
+
+        # Resolve (and on first run, download) released checkpoints up front:
+        # a clean argparse error here beats a mid-game failure.
+        try:
+            args.checkpoint = resolve_checkpoint(args.checkpoint)
+        except (FileNotFoundError, RuntimeError) as exc:
+            parser.error(str(exc))
+        if args.style_checkpoint:
+            try:
+                args.style_checkpoint = resolve_checkpoint(args.style_checkpoint)
+            except (FileNotFoundError, RuntimeError) as exc:
+                parser.error(f"--style-checkpoint: {exc}")
+        if args.style_vector and not Path(args.style_vector).is_file():
+            parser.error(f"--style-vector file not found: {args.style_vector!r}")
         if args.style_vector and not args.style_checkpoint:
             parser.error(
                 "--style-vector needs --style-checkpoint (the style "
@@ -177,9 +183,9 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
             )
         if importlib.util.find_spec("maia3") is None:
             parser.error(
-                "the 'maia3' package is required for the matilda backend; install "
-                "the pinned revision:\n  pip install 'maia3 @ git+https://github.com/"
-                "CSSLab/maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2'"
+                "the 'maia3' package is required for the matilda backend; it "
+                "ships with matilda-uci as the maia3-runtime dependency:\n"
+                "  pip install maia3-runtime"
             )
     else:  # maia2
         if args.device not in _MAIA2_DEVICES:

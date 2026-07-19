@@ -47,23 +47,27 @@ fixes) is merged. Repo ruleset requires a PR per change; current work branch is
 
 ## Track B — zero-friction install (P1)
 
-- [ ] **Kill the manual maia3 git install.** Publish the pinned maia3 commit to
-      PyPI as a credited AGPL package (working name `maia3-runtime`) and depend
-      on it in pyproject. PyPI rejects git-URL deps, so this is the clean path;
-      no relicensing of matilda-uci needed (GPLv3 + AGPLv3 coexist as separate
-      works). **Decision for Jason:** package name, and whether to ping CSSLab
-      first.
-- [ ] **Checkpoints resolve without a checkout.** First-run auto-download of
-      `base_3k.pt` / `style_token_3k.pt` (GitHub release assets →
-      `~/.cache/matilda-uci`), so the `--checkpoint` default works after a bare
-      pip install. Add git-lfs (`.gitattributes`) for the three small
-      checkpoints (~14 MB total) so a git clone works offline.
+- [x] **Kill the manual maia3 git install.** `maia3-runtime` package built and
+      verified from the pinned commit (unmodified source, AGPL preserved,
+      CSSLab credited, provenance note in the README; import name still
+      `maia3`); matilda-uci depends on `maia3-runtime==0.1.0`. **Blocked on
+      Justin:** create the GitHub fork repo + publish to PyPI (commands
+      staged; GPLv3 + AGPLv3 coexist as separate works, no relicensing).
+      **Decision for Jason:** package name OK? Ping CSSLab as a courtesy?
+- [x] **Checkpoints resolve without a checkout.**
+      `matilda_uci.assets.resolve_checkpoint`: path → checkout `checkpoints/`
+      (now vendored via git-lfs) → `~/.cache/matilda-uci` → sha256-verified
+      download from the `checkpoints-v1` release. git-lfs pointer stubs are
+      detected and named. **Blocked on Justin:** create the `checkpoints-v1`
+      release with the three .pt assets (command staged).
 - [ ] **Maia-3 weights distribution — decision for Jason.** Request was git-lfs
       for the 88 MB maia3 .pt too, but GitHub LFS free bandwidth (~1 GB/month)
       dies at ~11 clones/month. Recommendation: keep the HF auto-download
       (already how the maia3 package works) or mirror as a GitHub release
-      asset (unlimited bandwidth). LFS only for our small checkpoints.
-- [ ] Version bump + tag when B lands (release.yml publishes on `v*` tags).
+      asset (unlimited bandwidth). LFS only for our small checkpoints (done).
+- [x] Version bumped to 0.2.0. **Tag only after `maia3-runtime` is live on
+      PyPI** (otherwise the matilda-uci 0.2.0 install is unresolvable), and
+      after the checkpoints-v1 release exists.
 
 ## Track C — README & docs (P2)
 
@@ -75,7 +79,7 @@ fixes) is merged. Repo ruleset requires a PR per change; current work branch is
       next to the new engine-required behavior.
 - [ ] De-AI formatting pass: kill the odd bolding/highlighting, read it as a
       human wrote it.
-- [ ] developer.md: document the release process (tag `vX.Y.Z` → release.yml →
+- [x] developer.md: release process documented (tag `vX.Y.Z` → release.yml →
       PyPI trusted publisher; v0.1.0 already live).
 - [ ] CONTRIBUTING doc for third-party search-engine integrations: implement
       `SearchController`, open a PR with the `engine-integration` label, what

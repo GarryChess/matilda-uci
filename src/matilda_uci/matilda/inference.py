@@ -254,10 +254,8 @@ class MatildaModel:
             raise Maia3FeatureError(
                 "Maia-3 backend feature mismatch — " + "; ".join(problems) + ". "
                 f"The re-ranker was trained against the '{TRAINED_MAIA3_MODEL}' "
-                "variant at the pinned revision; install "
-                "'maia3 @ git+https://github.com/CSSLab/maia3.git@"
-                "1e13597c42d4858b7cfd7cfdae01e297263364b2' and use "
-                f"maia3_model='{TRAINED_MAIA3_MODEL}'."
+                "variant at the pinned revision; install the maia3-runtime "
+                f"package and use maia3_model='{TRAINED_MAIA3_MODEL}'."
             )
         self._features_checked = True
 
