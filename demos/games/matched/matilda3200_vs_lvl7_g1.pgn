@@ -1,0 +1,9 @@
+[Event "Matilda demo: Elo 3200 vs lichess level 7"]
+[Site "local"]
+[Date "2026.07.19"]
+[Round "1"]
+[White "Matilda (Elo 3200)"]
+[Black "Stockfish lvl7"]
+[Result "1-0"]
+
+1. e4 c6 2. d4 a6 3. Bd3 d6 4. Nf3 e5 5. O-O Bg4 6. dxe5 dxe5 7. h3 Bxf3 8. Qxf3 Nd7 9. Rd1 Qc7 10. Nd2 Ngf6 11. a4 Nc5 12. Nc4 a5 13. b3 Be7 14. Bb2 Ncd7 15. Be2 O-O 16. Qf5 g6 17. Qg5 Rae8 18. Nxe5 Nxe4 19. Rxd7 Qxd7 20. Qe3 Qf5 21. Bg4 Qxf2+ 22. Qxf2 Nxf2 23. Kxf2 Bh4+ 24. g3 f5 25. gxh4 fxg4+ 26. Kg3 Rf5 27. Nxg4 Kf8 28. Ba3+ c5 29. Bc1 Re6 30. Bh6+ Ke7 31. Rd1 c4 32. bxc4 Rd6 33. Rb1 Rd7 34. Ne3 Re5 35. Nd5+ Kf7 36. Rf1+ Rf5 37. Re1 Rh5 38. Bg5 h6 39. Rf1+ Kg7 40. Bf6+ Kh7 41. Bc3 Rdxd5 42. cxd5 b6 43. Rf7+ Kg8 44. Rg7+ Kf8 45. d6 Rd5 46. d7 Rd1 47. Kf4 b5 48. Ke4 bxa4 49. Bd4 Rxd4+ 50. Kxd4 Kxg7 51. d8=Q a3 52. Ke5 a2 53. Qc7+ Kh8 54. Qxa5 Kg8 55. Qxa2+ Kh7 56. Qa7+ Kh8 57. Kf6 Kg8 58. Qg7# 1-0
