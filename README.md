@@ -1,8 +1,10 @@
 # Matilda
 
+## [paper](https://github.com/GarryChess/matilda1-paper)/[website](https://garrychess.ai)/[discord](https://discord.com/invite/RtWdaky4f)
+
 <img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
 
-Long before brute-force search won, world champion **Mikhail Botvinnik**
+Long before brute-force search won, world champion Mikhail Botvinnik
 argued that a chess program should work the way a master does: don't examine
 every move — build a small candidate set the way a human would, and spend
 your calculation only there. He devoted his post-championship career (the
@@ -35,6 +37,27 @@ do max depth searches.
 <sub>Photo: Harry Pot / Anefo, Dutch National Archives — licensed
 [CC BY-SA 3.0 NL](https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en).</sub>
 
+
+## What the re-ranker buys over raw Maia-3
+
+Move-prediction improvement (NLL on held-out human games) of the shipped
+re-ranker over the frozen Maia-3 prior, by rating band — from the paper's
+results; 95% player-bootstrap CIs and the regeneration command for every
+number are in the [paper repo](https://github.com/GarryChess/matilda1-paper)'s
+RESULTS.md:
+
+| Elo band | vs Maia-3 |
+|---|---|
+| 1000–2500 | ~0% — no low-Elo collapse; plays as human as Maia-3 does |
+| 2500–2800 | +0.5% |
+| 2800–2900 | +4.3% |
+| 2900–3000 | +12.0% |
+| 3000–4000 | +23.0% |
+
+The gains concentrate exactly where a pure human prior runs out of training
+examples: the top of the rating pyramid, where the engine features carry
+real signal. Below 2500 the re-ranker gets no engine features and leaves
+Maia-3's human play intact.
 
 ## Install & run
 
@@ -138,15 +161,15 @@ to the pure human prior. `go infinite` runs on a worker thread and holds
 
 ## Real games on lichess: Matilda at full strength vs the AI levels
 
-Played **live on lichess.org** against the real server-side AI (via the Board
+Played live on lichess.org against the real server-side AI (via the Board
 API — `demos/play_on_lichess.py`): Matilda at Elo 3200 with the Stockfish
 search controller, 5+2 clock, one game each color per level.
 
 | Opponent | Games | Score |
 |---|---|---|
-| lichess level 6 | [win as White, mate](https://lichess.org/UZStPZRC) · [win as Black, mate](https://lichess.org/qzQLv7mU) | **2 – 0** |
-| lichess level 7 | [win as White, mate](https://lichess.org/FzmvD0kZ) · [win as Black, mate](https://lichess.org/DZNi54vz) | **2 – 0** |
-| lichess level 8 | [draw as White](https://lichess.org/yrGCakOj) · [draw as Black](https://lichess.org/5Zq9shsE) | **1 – 1** |
+| lichess level 6 | [win as White, mate](https://lichess.org/UZStPZRC) · [win as Black, mate](https://lichess.org/qzQLv7mU) | 2 – 0 |
+| lichess level 7 | [win as White, mate](https://lichess.org/FzmvD0kZ) · [win as Black, mate](https://lichess.org/DZNi54vz) | 2 – 0 |
+| lichess level 8 | [draw as White](https://lichess.org/yrGCakOj) · [draw as Black](https://lichess.org/5Zq9shsE) | 1 – 1 |
 
 5/6 against the machine spectrum, all decided over the board (mates and a
 193-ply stalemate grind) — checkmating levels 6–7 outright and holding
@@ -154,16 +177,18 @@ level 8, essentially full-strength Stockfish, to two draws. For local
 engine-vs-engine testing without a lichess account, `demos/play_vs_stockfish.py`
 reproduces the same opponents offline; sample PGNs in [demos/games/](demos/games/).
 
-## Demos, docs, numbers
+## Demos and docs
 
-- **[developer.md](developer.md)** — Python API, custom search controllers,
+- [developer.md](developer.md) — Python API, custom search controllers,
   style personalization, embedding in your own service.
-- **[docs/gui-demo.md](docs/gui-demo.md)** — playing it from CuteChess & co.
-- **[docs/profiling.md](docs/profiling.md)** — inference throughput by game
+- [CONTRIBUTING.md](CONTRIBUTING.md) — getting your search engine natively
+  supported by this repo.
+- [docs/gui-demo.md](docs/gui-demo.md) — playing it from CuteChess & co.
+- [docs/profiling.md](docs/profiling.md) — inference throughput by game
   phase (~100 predictions/s on an Apple M3 Pro CPU), rliable bootstrap CIs.
-- **[demos/games/](demos/games/)** — sample games vs lichess-level Stockfish;
+- [demos/games/](demos/games/) — local demo games vs lichess-level Stockfish;
   regenerate with `demos/play_vs_stockfish.py`.
-- **[demos/style_demo.py](demos/style_demo.py)** — measure how player-style
+- [demos/style_demo.py](demos/style_demo.py) — measure how player-style
   embeddings condition the policy.
 
 ## Development
