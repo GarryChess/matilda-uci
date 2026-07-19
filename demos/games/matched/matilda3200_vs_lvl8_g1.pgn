@@ -1,9 +1,9 @@
 [Event "Matilda demo: Elo 3200 vs lichess level 8"]
 [Site "local"]
-[Date "2026.07.17"]
+[Date "2026.07.19"]
 [Round "1"]
 [White "Matilda (Elo 3200)"]
 [Black "Stockfish lvl8"]
 [Result "1/2-1/2"]
 
-1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bf1 Nxe5 8. Rxe5 O-O 9. d4 Ne8 10. c4 Bf6 11. Re1 d5 12. cxd5 Qxd5 13. Be3 Be6 14. Nc3 Qd7 15. d5 Bf5 16. a4 Nd6 17. a5 a6 18. Na4 Rae8 19. h3 Qd8 20. Qb3 h6 21. Nc5 Bc8 22. Red1 Bg5 23. Bd4 Bf6 24. Be3 Qe7 25. Ra4 Bg5 26. Bd4 Bf6 27. Be3 Bg5 28. Bd4 Bf6 29. Bc3 Bxc3 30. bxc3 Qg5 31. c4 Re7 32. Ra3 Rfe8 33. Qb4 Re5 34. Rg3 Qh5 35. Rc1 Rg5 36. Qc3 b6 37. axb6 cxb6 38. Nb3 Ne4 39. Rxg5 Qxg5 40. Qd4 Nc5 41. Rc3 Re4 42. Qd1 Nd7 43. Qa1 a5 44. c5 Qxd5 45. cxb6 Nxb6 46. Nxa5 Bd7 47. Nb3 Qe5 48. Rc1 Qxa1 49. Rxa1 Rb4 50. Nc5 Bb5 51. Bxb5 Rxb5 52. Ne4 Re5 53. Ng3 Rc5 54. Ne4 Rc4 55. Nd6 Rc7 56. Nf5 Nd5 57. Ra8+ Kh7 58. g3 Rd7 59. Kg2 Nc3 60. Ne3 Ne4 61. Re8 Nc5 62. Re5 Nd3 63. Rb5 Ne1+ 64. Kf1 Nf3 65. Kg2 Nd4 66. Ra5 Ne6 67. h4 Rc7 68. h5 Rc5 69. Rxc5 Nxc5 70. Kf3 g6 71. hxg6+ fxg6 72. Ng4 Kg7 73. Kf4 h5 74. Ne3 Nd3+ 75. Kf3 Kf6 76. Nd5+ Ke5 77. Ne7 g5 78. Ke3 Nb4 79. Ng6+ Kf6 80. Nf8 Kf5 81. f3 Nd5+ 82. Kf2 g4 83. fxg4+ hxg4 84. Nd7 Ke6 85. Nf8+ Ke5 86. Nd7+ Kd6 87. Nf8 Ke5 88. Nd7+ Kd6 89. Nf8 Ke5 90. Nd7+ Kd6 91. Nf8 Ke5 92. Nd7+ Kd6 93. Nf8 Ke5 1/2-1/2
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bf1 Nxe5 8. Rxe5 O-O 9. d4 Ne8 10. c4 Bf6 11. Re1 d5 12. cxd5 Qxd5 13. Be3 Qd8 14. Nc3 Nd6 15. Bf4 Be6 16. d5 Bf5 17. a4 Re8 18. Rxe8+ Qxe8 19. a5 a6 20. Qb3 Qe7 21. Nd1 h5 22. Ne3 Bg6 23. Ra4 Re8 24. Bxd6 cxd6 25. Rb4 Qc7 26. Rxb7 Qxa5 27. Qb6 Qd2 28. Rb8 Rxb8 29. Qxb8+ Kh7 30. Qxd6 Qxb2 31. Qxa6 Bg5 32. d6 Qd4 33. Qa3 Be4 34. Qb3 Qxd6 35. Qxf7 Bg6 36. Qc4 Qd2 37. Qe6 Qd4 38. g3 Qe4 39. Qb3 h4 40. Ng2 Bf5 41. Qf7 Bg6 42. Qb3 Bf5 43. Qd1 g6 44. Nxh4 Bxh4 45. Bg2 Qe7 46. gxh4 Qxh4 47. Qd6 Qg5 48. Qc7+ Kh6 49. Qc3 Kh7 50. Qc7+ Kh6 51. Qc3 Kh7 52. Qc7+ Kh6 53. Qg3 Qc1+ 54. Bf1 Kg7 55. Qe5+ Kg8 56. Qe8+ Kh7 57. Qe7+ Kg8 58. Qd8+ Kh7 59. Qh4+ Kg7 60. Qe7+ Kh6 61. Qh4+ Kg7 62. Qe7+ Kh6 63. Qf8+ Kh7 64. Qf7+ Kh6 65. Qf8+ Kh7 66. Qf7+ Kh6 67. Qf8+ Kh7 68. Qe7+ Kh6 69. Qf8+ Kh7 70. Qe7+ Kh6 71. Kg2 Bh3+ 72. Kxh3 Qxf1+ 73. Kg3 Qg1+ 74. Kf3 Qxh2 75. Ke2 Qf4 76. f3 Qh2+ 77. Kd3 Qf2 78. Qf8+ Kg5 79. Qe7+ Kf4 80. Qf6+ Kg3 81. Qxg6+ Kxf3 82. Qf6+ Kg2 83. Qxf2+ Kxf2 1/2-1/2

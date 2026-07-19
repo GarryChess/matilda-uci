@@ -186,8 +186,10 @@ reproduces the same opponents offline; sample PGNs in [demos/games/](demos/games
 - [docs/gui-demo.md](docs/gui-demo.md) — playing it from CuteChess & co.
 - [docs/profiling.md](docs/profiling.md) — inference throughput by game
   phase (~100 predictions/s on an Apple M3 Pro CPU), rliable bootstrap CIs.
-- [demos/games/](demos/games/) — local demo games vs lichess-level Stockfish;
-  regenerate with `demos/play_vs_stockfish.py`.
+- [demos/games/](demos/games/) — the local Elo × level matrix: Matilda
+  {1500, 2000, 2800, 3200} vs lichess levels 6–8, two games per cell. The
+  scores form the staircase an Elo-conditioned engine should produce
+  (0–6 at 1500, 5–1 at 3200); regenerate with `demos/play_vs_stockfish.py`.
 - [demos/style_demo.py](demos/style_demo.py) — measure how player-style
   embeddings condition the policy.
 

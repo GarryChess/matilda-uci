@@ -1,0 +1,9 @@
+[Event "Matilda demo: Elo 3200 vs lichess level 6"]
+[Site "local"]
+[Date "2026.07.19"]
+[Round "1"]
+[White "Matilda (Elo 3200)"]
+[Black "Stockfish lvl6"]
+[Result "1-0"]
+
+1. e4 c5 2. Nf3 a6 3. c4 g6 4. d4 Qc7 5. Nc3 Nf6 6. dxc5 Qxc5 7. Be3 Qb4 8. a3 Qa5 9. b4 Qd8 10. e5 Ng4 11. Bd4 Nc6 12. Nd5 Nxd4 13. Qxd4 a5 14. Qxg4 d6 15. Qh4 axb4 16. c5 Bd7 17. cxd6 Qa5 18. Nc7+ Kd8 19. Bc4 bxa3+ 20. Ke2 Qc3 21. Rhc1 Qb4 22. Nxa8 b5 23. Rab1 Qa4 24. Nb6 Qa7 25. Nxd7 g5 26. Nxg5 Qa4 27. Nxf7+ Ke8 28. Nf6+ exf6 29. Qxf6 Qxc4+ 30. Rxc4 Bxd6 31. exd6 h5 32. Qe7# 1-0
