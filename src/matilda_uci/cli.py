@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import logging
+import shlex
+import shutil
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -37,8 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="0 = always the most human-likely move; >0 samples for variety.",
     )
     parser.add_argument(
-        "--seed", type=int, default=0,
-        help="RNG seed for temperature sampling (distinct seeds -> distinct games).",
+        "--seed", type=int, default=None,
+        help="RNG seed for temperature sampling. Default: a fresh random seed "
+             "every start (logged at INFO); pass a value to reproduce a run.",
     )
     parser.add_argument("--name", default="Matilda", help="Engine name shown to the GUI.")
     parser.add_argument(
@@ -78,11 +81,17 @@ def build_parser() -> argparse.ArgumentParser:
              "with demos/fit_style_vector.py. Requires --style-checkpoint.",
     )
     matilda.add_argument(
-        "--engine-cmd", default="",
-        help="Optional search controller command (e.g. 'stockfish' or "
-             "'lc0 --weights=...'); empty = play from the human prior alone.",
+        "--engine-cmd", default="auto",
+        help="Search controller command (e.g. 'stockfish' or 'lc0 --weights=...'). "
+             "Default 'auto' finds stockfish on PATH and fails fast if it is "
+             "missing — an engine is required unless --no-engine is passed.",
     )
-    matilda.add_argument("--engine-depth", type=int, default=12)
+    matilda.add_argument(
+        "--no-engine", action="store_true",
+        help="Play from the raw human prior alone, no search engine. High-Elo "
+             "play is much weaker without one; meant for research/tests.",
+    )
+    matilda.add_argument("--engine-depth", type=int, default=22)
     matilda.add_argument(
         "--engine-nodes", type=int, default=0,
         help=">0 switches the controller to a fixed node budget (Lc0-style).",
@@ -139,6 +148,26 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
                 "--style-vector needs --style-checkpoint (the style "
                 "transformation weights the vector is applied through)"
             )
+        if args.no_engine:
+            if args.engine_cmd != "auto":
+                parser.error("--no-engine conflicts with --engine-cmd")
+        elif args.engine_cmd == "auto":
+            if shutil.which("stockfish") is None:
+                parser.error(
+                    "no search engine: stockfish was not found on PATH. "
+                    "Install it (https://stockfishchess.org/download/; macOS: "
+                    "brew install stockfish; Debian/Ubuntu: apt install "
+                    "stockfish), or point --engine-cmd at another UCI engine, "
+                    "or pass --no-engine to play from the raw human prior "
+                    "(much weaker at high Elo)."
+                )
+        else:
+            exe = shlex.split(args.engine_cmd)[0] if args.engine_cmd.strip() else ""
+            if not exe or (shutil.which(exe) is None and not Path(exe).is_file()):
+                parser.error(
+                    f"--engine-cmd executable not found: {exe!r} "
+                    "(use --no-engine to play without a search engine)"
+                )
         if args.maia3_model != "23m":
             print(
                 f"warning: --maia3-model {args.maia3_model!r}: every shipped "
@@ -187,7 +216,7 @@ def build_policy(args: argparse.Namespace):
         temperature=args.temperature,
         style_checkpoint=args.style_checkpoint,
         style_vector=args.style_vector,
-        engine_cmd=args.engine_cmd,
+        engine_cmd=None if args.no_engine else args.engine_cmd,
         engine_depth=args.engine_depth,
         engine_nodes=args.engine_nodes,
         engine_movetime=args.engine_movetime,

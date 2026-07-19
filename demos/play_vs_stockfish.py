@@ -34,17 +34,21 @@ LICHESS_LEVELS = {1: (-9, 5), 2: (-5, 5), 3: (-1, 5), 4: (3, 5),
 
 
 def matilda_engine(
-    elo: int, temperature: float, engine_cmd: str = "", seed: int = 0,
-    checkpoint: str = "", name: str = "Matilda",
+    elo: int, temperature: float, engine_cmd: str = "", seed: int | None = None,
+    checkpoint: str = "", name: str = "Matilda", no_engine: bool = False,
 ) -> chess.engine.SimpleEngine:
     # Run straight from the checkout: no editable install required.
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO / "src") + os.pathsep + env.get("PYTHONPATH", "")
     argv = [sys.executable, "-m", "matilda_uci",
             "--elo", str(elo), "--temperature", str(temperature),
-            "--seed", str(seed), "--name", name,
+            "--name", name,
             "--checkpoint", checkpoint or str(REPO / "checkpoints" / "base_3k.pt")]
-    if engine_cmd:  # engine-assisted play (the top band's real configuration)
+    if seed is not None:
+        argv += ["--seed", str(seed)]
+    if no_engine:
+        argv += ["--no-engine"]
+    elif engine_cmd:  # override the default auto-resolved stockfish
         argv += ["--engine-cmd", engine_cmd]
     return chess.engine.SimpleEngine.popen_uci(argv, cwd=REPO, env=env)
 
@@ -83,9 +87,13 @@ def main() -> int:
                     help="sampling temperature so repeat games vary")
     ap.add_argument("--sf-movetime", type=float, default=0.5)
     ap.add_argument("--matilda-engine-cmd", default="",
-                    help="give Matilda a search controller too (e.g. 'stockfish')")
-    ap.add_argument("--seed", type=int, default=0,
-                    help="Matilda sampling seed (use distinct seeds for parallel runs)")
+                    help="Matilda's search controller (default: the engine's own "
+                         "auto-resolved stockfish)")
+    ap.add_argument("--matilda-no-engine", action="store_true",
+                    help="run Matilda from the raw human prior, no search engine")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="Matilda sampling seed (default: fresh per start; set "
+                         "distinct seeds for parallel runs)")
     ap.add_argument("--matilda-checkpoint", default="",
                     help="re-ranker checkpoint override (e.g. a zero-delta one, "
                          "which plays exactly the raw Maia-3 prior)")
@@ -104,7 +112,8 @@ def main() -> int:
         elo_s, lvl_s = pairing.split(":")
         elo, level = int(elo_s), int(lvl_s)
         matilda = matilda_engine(elo, args.temperature, args.matilda_engine_cmd,
-                                 args.seed, args.matilda_checkpoint, args.matilda_name)
+                                 args.seed, args.matilda_checkpoint,
+                                 args.matilda_name, args.matilda_no_engine)
         sf, depth = stockfish_engine(args.stockfish, level)
         sf_limit = chess.engine.Limit(depth=depth, time=args.sf_movetime)
         m_limit = chess.engine.Limit(time=10.0)
@@ -146,8 +155,11 @@ def main() -> int:
             f"{score['stockfish']:g}{extra} |"
         )
 
-    assist = (f"; Matilda search controller: {args.matilda_engine_cmd}"
-              if args.matilda_engine_cmd else "; Matilda unassisted (pure human prior)")
+    if args.matilda_no_engine:
+        assist = "; Matilda unassisted (pure human prior)"
+    else:
+        assist = ("; Matilda search controller: "
+                  f"{args.matilda_engine_cmd or 'auto (stockfish)'}")
     table = ["# Demo games", "",
              f"Generated {today} by `demos/play_vs_stockfish.py` "
              f"(temperature {args.temperature}; lichess levels via the fishnet "

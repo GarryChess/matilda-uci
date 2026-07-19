@@ -145,10 +145,11 @@ def main() -> int:
     ap.add_argument("--opp-elo", type=int, default=0,
                     help="0 = auto per level (rough human-equivalents)")
     ap.add_argument("--temperature", type=float, default=0.3)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--engine-cmd", default="stockfish",
+    ap.add_argument("--seed", type=int, default=None,
+                    help="sampling seed (default: fresh per run)")
+    ap.add_argument("--engine-cmd", default="auto",
                     help="Matilda's local search controller ('' to disable)")
-    ap.add_argument("--engine-depth", type=int, default=12)
+    ap.add_argument("--engine-depth", type=int, default=22)
     ap.add_argument("--checkpoint", default="checkpoints/base_3k.pt")
     ap.add_argument("--clock", default="180+0", help="base+inc seconds, e.g. 180+0")
     ap.add_argument("--pause", type=float, default=10.0,

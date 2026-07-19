@@ -16,7 +16,10 @@ UCI-protocol impedance matching (see currentTask notes):
   transmits base explicitly. At the first ``go`` of a game the side-to-move
   clock ~= base and the increment is exact, so we latch them then
   (``AutoLatchTC``); ``TimeControlBase``/``TimeControlInc`` options are the
-  fallback, defaulting to 180+0 blitz (Maia-3 is blitz-trained).
+  fallback, defaulting to 180+0 blitz (Maia-3 is blitz-trained). The same TC
+  also sets the search controller's per-move time budget (see
+  :mod:`matilda_uci.timecontrol`), bounded further by the remaining clock and
+  any explicit ``EngineMovetime`` / ``go movetime``.
 * **Elos**: both players' Elos are inputs UCI does not provide; standard
   ``UCI_Elo`` plus an ``OpponentElo`` option cover them.
 """
@@ -25,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import random
+import shutil
 from typing import Callable
 
 import chess
@@ -38,10 +42,37 @@ from .policy import (
     effective_elo,
     winprob_to_cp,
 )
+from .timecontrol import MoveTimeConfig
 
 logger = logging.getLogger(__name__)
 
 _HISTORY_PLIES = 8
+
+STOCKFISH_INSTALL_HINT = (
+    "stockfish not found on PATH — install it "
+    "(https://stockfishchess.org/download/; macOS: brew install stockfish; "
+    "Debian/Ubuntu: apt install stockfish), or pass an explicit engine "
+    "command, or opt out of engine assistance explicitly."
+)
+
+
+def resolve_engine_cmd(engine_cmd: str | None) -> str:
+    """Turn the ``engine_cmd`` setting into a runnable command.
+
+    ``"auto"`` (the default) resolves stockfish from PATH and raises
+    :class:`FileNotFoundError` when it is missing — high-Elo play without a
+    search engine is silently much weaker, so absence must be loud. ``None``
+    or ``""`` means the caller explicitly wants no engine.
+    """
+    if engine_cmd is None:
+        return ""
+    cmd = engine_cmd.strip()
+    if cmd != "auto":
+        return cmd
+    found = shutil.which("stockfish")
+    if found is None:
+        raise FileNotFoundError(STOCKFISH_INSTALL_HINT)
+    return found
 
 
 def board_history_fens(board: chess.Board, plies: int = _HISTORY_PLIES) -> list[str]:
@@ -81,13 +112,14 @@ class MatildaPolicy:
         elo_max: int = 3200,
         style_checkpoint: str = "",
         style_vector: str = "",
-        engine_cmd: str = "",
-        engine_depth: int = 12,
+        engine_cmd: str | None = "auto",
+        engine_depth: int = 22,
         engine_nodes: int = 0,
         engine_movetime: float = 0.0,
+        movetime_config: MoveTimeConfig | None = None,
         threads: int = 0,
         cache_size: int = 4096,
-        seed: int = 0,
+        seed: int | None = None,
     ) -> None:
         self.checkpoint = checkpoint
         self.device = device
@@ -107,17 +139,24 @@ class MatildaPolicy:
         self.style_checkpoint = style_checkpoint
         self.style_vector = style_vector
         self._style_pid: int | None = None
-        self.engine_cmd = engine_cmd
+        self.engine_cmd = resolve_engine_cmd(engine_cmd)
         self.engine_depth = int(engine_depth)
         self.engine_nodes = int(engine_nodes)
         self.engine_movetime = float(engine_movetime)
+        self.movetime_config = movetime_config or MoveTimeConfig()
+        self._clock_remaining_s: float | None = None
+        self._gui_movetime_s: float | None = None
         self.threads = int(threads)
         self.cache_size = int(cache_size)
         self._model = model
         self._model_factory = model_factory
         self._style_applied = False
         self._controller: object | None = None
-        self._rng = random.Random(seed)
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**32)
+            logger.info("sampling seed (fresh): %d — pass seed= to reproduce", seed)
+        self.seed = int(seed)
+        self._rng = random.Random(self.seed)
 
     # --- MovePolicy surface ------------------------------------------------------
     def select(self, board: chess.Board) -> PolicyResult:
@@ -193,7 +232,7 @@ class MatildaPolicy:
                       min=0, max=10_000_000),
             UciOption("EngineMovetime", "spin",
                       default=str(int(self.engine_movetime * 1000)),
-                      min=0, max=600_000),  # milliseconds; 0 = uncapped
+                      min=0, max=600_000),  # ms; 0 = the TC-derived budget alone
             UciOption("Device", "combo", default=self.device, var=("cpu", "mps", "cuda")),
             UciOption("Threads", "spin", default=str(self.threads), min=0, max=64),
             UciOption("CacheSize", "spin", default=str(self.cache_size),
@@ -232,9 +271,15 @@ class MatildaPolicy:
         elif key == "stylevector" and value != self.style_vector:
             self.style_vector = value
             self._reset_model()
-        elif key == "enginecmd" and value != self.engine_cmd:
-            self.engine_cmd = value
-            self._reset_controller()
+        elif key == "enginecmd":
+            try:
+                resolved = resolve_engine_cmd(value)
+            except FileNotFoundError as exc:
+                logger.warning("EngineCmd %r ignored: %s", value, exc)
+            else:
+                if resolved != self.engine_cmd:
+                    self.engine_cmd = resolved
+                    self._reset_controller()
         elif key == "enginedepth":
             self.engine_depth = _safe_int(value, self.engine_depth)
             self._update_controller_limits()
@@ -263,17 +308,23 @@ class MatildaPolicy:
             logger.debug("MatildaPolicy: ignoring option %s=%s", name, value)
 
     def observe_go(self, params: dict, board: chess.Board) -> None:
-        """Latch the time control from the first ``go`` of the game.
+        """Read the clock state from each ``go``: latch the TC, track the rest.
 
         At move one the side-to-move clock ~= base and the increment is exact;
         later in the game the clock has drifted, so only the increment is
-        trusted then.
+        trusted then. The remaining clock and any ``go movetime`` feed the
+        search controller's per-move budget on every call.
         """
-        if not self.auto_latch_tc or self._tc_latched:
-            return
         our_time = params.get("wtime" if board.turn == chess.WHITE else "btime")
         our_inc = params.get("winc" if board.turn == chess.WHITE else "binc")
-        if our_time is None:
+        self._clock_remaining_s = (
+            float(our_time) / 1000.0 if our_time is not None else None
+        )
+        movetime = params.get("movetime")
+        self._gui_movetime_s = (
+            float(movetime) / 1000.0 if movetime is not None else None
+        )
+        if not self.auto_latch_tc or self._tc_latched or our_time is None:
             return
         if board.ply() <= 1:
             self.tc_base = float(our_time) / 1000.0
@@ -287,6 +338,8 @@ class MatildaPolicy:
         self._tc_latched = False
         self.tc_base = self.cfg_tc_base
         self.tc_inc = self.cfg_tc_inc
+        self._clock_remaining_s = None
+        self._gui_movetime_s = None
 
     def close(self) -> None:
         self._reset_controller()
@@ -340,8 +393,10 @@ class MatildaPolicy:
 
             self._controller = UciSearchController(
                 self.engine_cmd, depth=self.engine_depth, nodes=self.engine_nodes,
-                timeout_s=self.engine_movetime or None,
+                timeout_s=self._engine_budget(),
             )
+        else:
+            self._update_controller_limits()  # keep the per-move budget current
         return self._controller
 
     def _reset_controller(self) -> None:
@@ -351,13 +406,24 @@ class MatildaPolicy:
                 close()
             self._controller = None
 
+    def _engine_budget(self) -> float:
+        """Seconds the search controller may spend on the next move: the TC's
+        speed cap, bounded by the remaining clock, any explicit
+        ``EngineMovetime``, and any GUI ``go movetime``."""
+        return self.movetime_config.budget(
+            self.tc_base, self.tc_inc,
+            explicit_s=self.engine_movetime,
+            remaining_s=self._clock_remaining_s,
+            gui_movetime_s=self._gui_movetime_s,
+        )
+
     def _update_controller_limits(self) -> None:
         """Apply depth/nodes/movetime to a live controller in place — they only
         feed the per-call search limit, so no reason to respawn the engine."""
         if self._controller is not None:
             self._controller.depth = self.engine_depth
             self._controller.nodes = self.engine_nodes
-            self._controller.timeout_s = self.engine_movetime or None
+            self._controller.timeout_s = self._engine_budget()
 
     def _effective_elo(self) -> int:
         return effective_elo(self.elo_self, self.elo_min, self.elo_max, self.limit_strength)
