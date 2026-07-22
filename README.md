@@ -1,6 +1,6 @@
 # Matilda
 
-## [paper](https://github.com/GarryChess/matilda1-paper)/[website](https://garrychess.ai)/[discord](https://discord.com/invite/RtWdaky4f)
+## [paper](https://arxiv.org/abs/2606.25176)/[website](https://garrychess.ai)/[discord](https://discord.com/invite/RtWdaky4f)
 
 <img src="assets/botvinnik_1962.jpg" align="right" width="180" alt="Mikhail Botvinnik, 1962">
 
