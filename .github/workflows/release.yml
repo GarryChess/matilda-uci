@@ -1,6 +1,6 @@
 # PyPI release via trusted publishing (OIDC — no API token stored).
 # Matches the publisher registered on PyPI for this repo:
-#   project: matilda-uci   repo: jcarlson212/matilda-uci   workflow: release.yml
+#   project: matilda-uci   repo: GarryChess/matilda-uci   workflow: release.yml
 #
 # Trigger: push a version tag, e.g.
 #   git tag v0.1.0 && git push origin v0.1.0
@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The vendored checkpoints are git-lfs objects; without this the
+          # checkout leaves pointer stubs and any test that opens them breaks.
+          lfs: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

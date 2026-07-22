@@ -88,10 +88,9 @@ class Maia3Wrapper:
             from maia3.utils import get_all_possible_moves
         except ImportError as exc:  # pragma: no cover - depends on optional dep
             raise ImportError(
-                "maia3 is required for Maia3Wrapper. Install the paper's pinned "
-                "revision: pip install 'maia3 @ git+https://github.com/CSSLab/"
-                "maia3.git@1e13597c42d4858b7cfd7cfdae01e297263364b2' "
-                "(weights auto-download from HuggingFace on first use)."
+                "maia3 is required for Maia3Wrapper: pip install maia3-runtime "
+                "(the paper's pinned CSSLab/maia3 revision, republished on "
+                "PyPI; weights auto-download from HuggingFace on first use)."
             ) from exc
 
         spec = resolve_model_spec(self.model)

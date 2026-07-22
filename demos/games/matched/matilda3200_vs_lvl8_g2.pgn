@@ -1,9 +1,9 @@
 [Event "Matilda demo: Elo 3200 vs lichess level 8"]
 [Site "local"]
-[Date "2026.07.17"]
+[Date "2026.07.19"]
 [Round "2"]
 [White "Stockfish lvl8"]
 [Black "Matilda (Elo 3200)"]
 [Result "1/2-1/2"]
 
-1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bf1 Nxe5 8. Rxe5 O-O 9. d4 Bf6 10. Re1 Re8 11. Bf4 Rxe1 12. Qxe1 Ne8 13. c3 d5 14. Bd3 g6 15. Nd2 Ng7 16. Nf3 Bf5 17. Bxf5 Nxf5 18. Qd2 Qd7 19. Re1 Ng7 20. h3 Re8 21. Rxe8+ Nxe8 22. Ne5 Qe6 23. Qd1 c6 24. Nd3 Be7 25. Bb8 a6 26. Qg4 Ng7 27. Kf1 f6 28. Qf4 Qe4 29. Qxe4 dxe4 30. Nc1 Ne6 31. Nb3 Bd8 32. Nd2 f5 33. Nc4 Nf8 34. Nd6 b6 35. Nb7 Bf6 36. Bc7 Nd7 37. Nd8 c5 38. d5 c4 39. Ke2 Nc5 40. Bxb6 Na4 41. Bc7 Nxb2 42. Nb7 Kf7 43. d6 Ke6 44. Nc5+ Kd5 45. Nxa6 Ke6 46. Nc5+ Kd5 47. Na6 Ke6 48. Nc5+ Kd5 49. Na6 Ke6 50. Nc5+ Kd5 51. Na6 Kc6 52. Nb4+ Kd7 53. Nd5 Be5 54. h4 Kc6 55. Ne7+ Kd7 56. Nd5 Na4 57. Kd2 Kc6 58. Ne7+ Kd7 59. Nd5 Kc6 60. Ne7+ Kd7 61. Nd5 Kc6 62. Ne7+ Kd7 63. Nd5 Kc6 64. Ne7+ Kd7 65. Nd5 1/2-1/2
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 Nd6 6. Nxe5 Be7 7. Bf1 Nxe5 8. Rxe5 O-O 9. d4 Bf6 10. Re1 Re8 11. Nc3 Rxe1 12. Qxe1 Bxd4 13. Bf4 Ne8 14. Nd5 d6 15. Bg5 f6 16. Bh4 g5 17. Qe4 Bxb2 18. Re1 Be5 19. f4 gxh4 20. fxe5 dxe5 21. Bd3 Kf8 22. Ne3 Qe7 23. Qxh4 Be6 24. Bxh7 Rd8 25. Be4 Qg7 26. Rf1 Rd4 27. c3 Ra4 28. c4 Rxa2 29. Bxb7 Re2 30. Nf5 Bxf5 31. Rxf5 Qd7 32. Rxf6+ Nxf6 33. Qxf6+ Qf7 34. Qd8+ Qe8 35. Qf6+ Qf7 36. Qd8+ Qe8 37. Qf6+ Qf7 38. Qd8+ Qe8 39. Qf6+ Qf7 40. Qd8+ Qe8 41. Qf6+ Qf7 1/2-1/2

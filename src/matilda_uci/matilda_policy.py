@@ -6,7 +6,7 @@ set-transformer from ``base_3k.pt``) over the UCI protocol. Everything heavy
 module — and the engine handshake — stays instant and torch-free; tests inject
 a fake model.
 
-UCI-protocol impedance matching (see currentTask notes):
+UCI-protocol impedance matching:
 
 * **Move history**: Maia-3 conditions on the trailing 8 positions. UCI gives
   them for free — ``position startpos moves ...`` builds a board whose
@@ -73,6 +73,15 @@ def resolve_engine_cmd(engine_cmd: str | None) -> str:
     if found is None:
         raise FileNotFoundError(STOCKFISH_INSTALL_HINT)
     return found
+
+
+def _resolve_if_released(spec: str) -> str:
+    """Resolve released checkpoint names (download on first use); anything
+    else — an existing path, or a caller-supplied identifier for an injected
+    model — passes through untouched."""
+    from .assets import resolve_if_released
+
+    return resolve_if_released(spec)
 
 
 def board_history_fens(board: chess.Board, plies: int = _HISTORY_PLIES) -> list[str]:
@@ -355,7 +364,9 @@ class MatildaPolicy:
         if self.style_checkpoint and self.style_vector and not self._style_applied:
             load_vec = getattr(self._model, "load_style_vector", None)
             if callable(load_vec):
-                self._style_pid = load_vec(self.style_checkpoint, self.style_vector)
+                self._style_pid = load_vec(
+                    _resolve_if_released(self.style_checkpoint), self.style_vector
+                )
                 logger.info(
                     "style vector %s loaded (transformation: %s)",
                     self.style_vector, self.style_checkpoint,
@@ -373,7 +384,8 @@ class MatildaPolicy:
         from .matilda import MatildaModel
 
         return MatildaModel(
-            self.checkpoint, device=self.device, maia3_model=self.maia3_model,
+            _resolve_if_released(self.checkpoint), device=self.device,
+            maia3_model=self.maia3_model,
             threads=self.threads, cache_size=self.cache_size,
         )
 

@@ -25,6 +25,7 @@ from typing import Callable, Sequence
 import numpy as np
 import torch
 
+from ..assets import resolve_if_released
 from .features import tensors_sf
 from .model import HIDDEN_DIM, IMPORTANCE_DIM, N_CANDIDATES, VOCAB_SIZE, TXTC
 from .move_vocab import legal_mask, move_index
@@ -113,7 +114,7 @@ class MatildaModel:
         if self._model is None:
             if self.threads > 0:
                 torch.set_num_threads(self.threads)
-            sd = torch.load(self.checkpoint, map_location="cpu")
+            sd = torch.load(resolve_if_released(self.checkpoint), map_location="cpu")
             self._base_sd = {k: v for k, v in sd.items() if not k.startswith("sp")}
             # Size the style table from the checkpoint (rows = n_players + 1),
             # like every other load site — hardcoding breaks custom checkpoints.
@@ -134,7 +135,7 @@ class MatildaModel:
         """
         self._ensure_model()  # populates _base_sd
         assert self._base_sd is not None
-        tok = torch.load(style_checkpoint, map_location="cpu")
+        tok = torch.load(resolve_if_released(style_checkpoint), map_location="cpu")
         spe_overlay = tok["state_dict"]["spe.weight"]
         rows = spe_overlay.shape[0]
 
@@ -180,7 +181,7 @@ class MatildaModel:
         """
         self._ensure_model()  # populates _base_sd
         assert self._base_sd is not None
-        tok = torch.load(style_checkpoint, map_location="cpu")
+        tok = torch.load(resolve_if_released(style_checkpoint), map_location="cpu")
         sdim = int(tok["sdim"])
         if isinstance(vector, (str, bytes)):
             loaded = torch.load(vector, map_location="cpu")
@@ -254,10 +255,8 @@ class MatildaModel:
             raise Maia3FeatureError(
                 "Maia-3 backend feature mismatch — " + "; ".join(problems) + ". "
                 f"The re-ranker was trained against the '{TRAINED_MAIA3_MODEL}' "
-                "variant at the pinned revision; install "
-                "'maia3 @ git+https://github.com/CSSLab/maia3.git@"
-                "1e13597c42d4858b7cfd7cfdae01e297263364b2' and use "
-                f"maia3_model='{TRAINED_MAIA3_MODEL}'."
+                "variant at the pinned revision; install the maia3-runtime "
+                f"package and use maia3_model='{TRAINED_MAIA3_MODEL}'."
             )
         self._features_checked = True
 
