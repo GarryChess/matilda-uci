@@ -86,6 +86,22 @@ def resolve_checkpoint(spec: str | os.PathLike, *, download: bool = True) -> str
     return str(_download(name, cached))
 
 
+def resolve_if_released(spec: str | os.PathLike, *, download: bool = True) -> str:
+    """Lenient sibling of :func:`resolve_checkpoint` for library entry points.
+
+    An existing file, or any caller-supplied identifier that is not a released
+    name (e.g. a stand-in for an injected model), passes through untouched;
+    only a released name that is not already on disk gets resolved (and, on
+    first use, downloaded). This lets ``MatildaModel()`` / ``MatildaPolicy()``
+    work straight after ``pip install`` without turning every custom string
+    into a hard error.
+    """
+    path = Path(spec)
+    if not path.is_file() and path.name in KNOWN_CHECKPOINTS:
+        return resolve_checkpoint(spec, download=download)
+    return str(spec)
+
+
 def _reject_lfs_pointer(path: Path) -> None:
     """A clone made without git-lfs leaves ~130-byte pointer stubs where the
     checkpoints should be; loading one into torch fails inscrutably, so name

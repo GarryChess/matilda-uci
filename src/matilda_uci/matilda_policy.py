@@ -79,13 +79,9 @@ def _resolve_if_released(spec: str) -> str:
     """Resolve released checkpoint names (download on first use); anything
     else — an existing path, or a caller-supplied identifier for an injected
     model — passes through untouched."""
-    from pathlib import Path
+    from .assets import resolve_if_released
 
-    from .assets import KNOWN_CHECKPOINTS, resolve_checkpoint
-
-    if not Path(spec).is_file() and Path(spec).name in KNOWN_CHECKPOINTS:
-        return resolve_checkpoint(spec)
-    return spec
+    return resolve_if_released(spec)
 
 
 def board_history_fens(board: chess.Board, plies: int = _HISTORY_PLIES) -> list[str]:
