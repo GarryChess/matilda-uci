@@ -134,6 +134,8 @@ treat them as a rough lower bound, not vendable player models.)
 
 ```python
 import chess.engine
+# --engine-cmd defaults to auto, so stockfish must be on PATH here (or add
+# "--no-engine" to the argv to play from the raw human prior).
 eng = chess.engine.SimpleEngine.popen_uci(["matilda-uci", "--elo", "1800"])
 eng.configure({"OpponentElo": 2000, "EngineCmd": "stockfish"})
 result = eng.play(chess.Board(), chess.engine.Limit(time=1.0))
